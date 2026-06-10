@@ -11,7 +11,7 @@
 
 
 A PowerShell utility for Authenticode code signing and verification
-using Azure Trusted Signing and `signtool.exe`.
+using [Azure Artifact Signing](https://learn.microsoft.com/en-us/azure/artifact-signing/) and `signtool.exe`.
 
 ---
 
