@@ -91,3 +91,31 @@ Acceptance criteria:
       Configuration heading
 - [ ] docs/metadata.json example file is referenced
 - [ ] All three JSON fields are explained
+---
+Title: Document Azure credential environment variables in README
+Issue: #4
+Status: closed
+Labels: documentation
+Body:
+Add a section to README.md explaining the Azure credential environment
+variables required by the `-Sign` command and the optional `.env` file
+for local development.
+
+The section should cover:
+- Required variables: AZURE_TENANT_ID, AZURE_CLIENT_ID,
+  AZURE_CLIENT_SECRET
+- How to set them in the shell (PowerShell and batch examples)
+- Optional `.env` file support via `-EnvFile` parameter
+- `.env` format: KEY=VALUE, comments with #, blank lines ignored,
+  existing env vars are not overwritten
+- Security: `.env` must be gitignored, never committed
+- Reference the example file at `docs/.env.example`
+- Link to Azure portal for obtaining each credential value
+
+Create `docs/.env.example` with placeholder values and comments.
+
+Acceptance criteria:
+- [ ] README has an Azure Credentials section
+- [ ] docs/.env.example file exists with commented placeholders
+- [ ] All three environment variables are explained
+- [ ] .env file behavior is documented (no-overwrite, comment syntax)

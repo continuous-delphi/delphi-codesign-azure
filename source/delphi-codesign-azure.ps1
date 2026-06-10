@@ -129,7 +129,7 @@ $ExitDirty          = 1   # -Check found items needing attention / signature inv
 $ExitPartialFailure = 2   # some items failed
 $ExitFatal          = 3   # engine not found, bad root, unhandled error
 
-$script:ToolVersion = '0.1.3'
+$script:ToolVersion = '0.1.4'
 
 # =============================================================================
 # Version info

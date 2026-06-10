@@ -187,6 +187,67 @@ pwsh -File source/delphi-codesign-azure.ps1 -Sign -Files app.exe -MetadataPath p
 
 ---
 
+## Azure Credentials
+
+The `-Sign` command requires three Azure environment variables for
+authentication with Azure Trusted Signing:
+
+| Variable | Description |
+|----------|-------------|
+| `AZURE_TENANT_ID` | Entra ID tenant ID |
+| `AZURE_CLIENT_ID` | Application (client) ID of the app registration |
+| `AZURE_CLIENT_SECRET` | Client secret value (not the secret ID) |
+
+### Setting credentials in the shell
+
+PowerShell:
+
+```powershell
+$env:AZURE_TENANT_ID = 'your-tenant-id'
+$env:AZURE_CLIENT_ID = 'your-client-id'
+$env:AZURE_CLIENT_SECRET = 'your-client-secret'
+```
+
+Batch:
+
+```batch
+set AZURE_TENANT_ID=your-tenant-id
+set AZURE_CLIENT_ID=your-client-id
+set AZURE_CLIENT_SECRET=your-client-secret
+```
+
+### Using a .env file
+
+For local development, credentials can be stored in a `.env` file and
+loaded via the `-EnvFile` parameter:
+
+```powershell
+pwsh -File source/delphi-codesign-azure.ps1 -Sign -Files app.exe -EnvFile .env -Format text
+```
+
+See [docs/.env.example](docs/.env.example) for the file format.
+
+**Format rules:**
+
+- One `KEY=VALUE` pair per line
+- Lines starting with `#` are comments
+- Blank lines are ignored
+- Existing environment variables are **not** overwritten -- the `.env`
+  file only fills in values that are not already set
+
+**Security:** The `.env` file contains secrets and should not be
+committed. Add it to `.gitignore`.
+
+### Obtaining credentials from Azure
+
+1. **AZURE_TENANT_ID**: Azure portal > Entra ID > Overview > Tenant ID
+2. **AZURE_CLIENT_ID**: Azure portal > Entra ID > App registrations > your app > Application (client) ID
+3. **AZURE_CLIENT_SECRET**: Azure portal > Entra ID > App registrations > your app > Certificates & secrets > New client secret > copy the **Value** (not the Secret ID)
+
+If the client secret has expired, create a new one in the portal.
+
+---
+
 ## Output Formats
 
 The `-Format` parameter controls output across all commands:

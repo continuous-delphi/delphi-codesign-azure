@@ -16,6 +16,8 @@ All notable changes to this project will be documented in this file.
 [#2](https://github.com/continuous-delphi/delphi-codesign-azure/issues/2)
 - Document `metadata.json` setup in README with field descriptions and Azure portal instructions
 [#3](https://github.com/continuous-delphi/delphi-codesign-azure/issues/3)
+- Document Azure credential environment variables and `.env` file usage in README
+[#4](https://github.com/continuous-delphi/delphi-codesign-azure/issues/4)
 
 ---
 
