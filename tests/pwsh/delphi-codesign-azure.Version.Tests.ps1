@@ -83,10 +83,10 @@ Describe 'delphi-codesign-azure.ps1 -Version' {
 
     }
 
-    Context 'mutual exclusion with main parameters' {
+    Context 'mutual exclusion between parameter sets' {
 
-        It 'rejects -RootPath with -Version' {
-            $r = Invoke-ToolProcess -ScriptPath $script:ToolPath -Arguments @('-Version', '-RootPath', 'C:\Fake')
+        It 'rejects -FilePath with -Version' {
+            $r = Invoke-ToolProcess -ScriptPath $script:ToolPath -Arguments @('-Version', '-FilePath', 'C:\Fake')
             $r.ExitCode | Should -Not -Be 0
         }
 

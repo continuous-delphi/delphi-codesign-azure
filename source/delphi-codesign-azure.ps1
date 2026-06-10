@@ -46,15 +46,9 @@ pwsh -File source/delphi-codesign-azure.ps1 -Verify -FilePath app.exe -Format te
 pwsh -File source/delphi-codesign-azure.ps1 -Version -Format json
 #>
 
-[CmdletBinding(SupportsShouldProcess, DefaultParameterSetName = 'Version')]
+[CmdletBinding(DefaultParameterSetName = 'Version')]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
   Justification='Write-Host is intentional: standalone CLI tool streams status to the console host.')]
-[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'OutputLevel',
-  Justification='Consumed by Write-Detail/Write-Summary helper functions.')]
-[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'PassThru',
-  Justification='Template placeholder: consumed by tool-specific logic added during customization.')]
-[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'OutputFile',
-  Justification='Template placeholder: consumed by tool-specific logic added during customization.')]
 param(
     [Parameter(ParameterSetName = 'Version', Mandatory)]
     [switch]$Version,
@@ -88,36 +82,7 @@ param(
     [string]$MetadataPath,
 
     [Parameter(ParameterSetName = 'Sign')]
-    [string]$EnvFile,
-
-    [Parameter(ParameterSetName = 'Main')]
-    [string]$RootPath,
-
-    [Parameter(ParameterSetName = 'Main')]
-    [ValidateSet('detailed', 'summary', 'quiet')]
-    [string]$OutputLevel = 'detailed',
-
-    [Parameter(ParameterSetName = 'Main')]
-    [switch]$Json,
-
-    [Parameter(ParameterSetName = 'Main')]
-    [switch]$PassThru,
-
-    [Parameter(ParameterSetName = 'Main')]
-    [switch]$Check,
-
-    [Parameter(ParameterSetName = 'Main')]
-    [switch]$ShowConfig,
-
-    [Parameter(ParameterSetName = 'Main')]
-    [string]$ConfigFile,
-
-    [Parameter(ParameterSetName = 'Main')]
-    [string]$OutputFile
-
-    # -------------------------------------------------------------------------
-    # Add tool-specific parameters here.
-    # -------------------------------------------------------------------------
+    [string]$EnvFile
 )
 
 Set-StrictMode -Version Latest
@@ -125,11 +90,11 @@ $ErrorActionPreference = 'Stop'
 
 # Exit code constants
 $ExitSuccess        = 0
-$ExitDirty          = 1   # -Check found items needing attention / signature invalid
-$ExitPartialFailure = 2   # some items failed
-$ExitFatal          = 3   # engine not found, bad root, unhandled error
+$ExitDirty          = 1   # signature invalid or file not signed
+$ExitPartialFailure = 2   # some files failed to sign
+$ExitFatal          = 3   # prerequisites missing, file not found, etc.
 
-$script:ToolVersion = '0.1.4'
+$script:ToolVersion = '0.1.5'
 
 # =============================================================================
 # Version info
@@ -153,213 +118,7 @@ if ($Version) {
 }
 
 # =============================================================================
-# Output helpers
-# =============================================================================
-
-$script:SuppressOutput = $Json.IsPresent
-
-function Write-Detail([string]$Message) {
-    if ($script:SuppressOutput) { return }
-    if ($OutputLevel -eq 'detailed') {
-        Write-Host $Message
-    }
-}
-
-function Write-Summary([string]$Message) {
-    if ($script:SuppressOutput) { return }
-    if ($OutputLevel -in 'detailed', 'summary') {
-        Write-Host $Message
-    }
-}
-
-function Write-Section([string]$Message) {
-    if ($script:SuppressOutput) { return }
-    if ($OutputLevel -eq 'detailed') {
-        Write-Host ""
-        Write-Host $Message -ForegroundColor Cyan
-    }
-}
-
-function Write-SummarySection([string]$Message) {
-    if ($script:SuppressOutput) { return }
-    if ($OutputLevel -in 'detailed', 'summary') {
-        Write-Host ""
-        Write-Host $Message -ForegroundColor Cyan
-    }
-}
-
-# =============================================================================
-# Utility helpers
-# =============================================================================
-
-function Format-Duration([double]$Milliseconds) {
-    if ($Milliseconds -lt 1000) { return "$([math]::Round($Milliseconds, 0)) ms" }
-    return "$([math]::Round($Milliseconds / 1000, 1)) s"
-}
-
-function Resolve-ToolRoot([string]$Path) {
-    if ([string]::IsNullOrEmpty($Path)) {
-        return (Get-Location).Path
-    }
-    $resolved = Resolve-Path -LiteralPath $Path -ErrorAction SilentlyContinue
-    if ($null -eq $resolved) {
-        Write-Error "Root path does not exist: $Path" -ErrorAction Continue
-        exit $ExitFatal
-    }
-    return $resolved.ProviderPath
-}
-
-function Test-SafeRoot([string]$Path) {
-    $root = [System.IO.Path]::GetPathRoot($Path)
-    if ($Path -eq $root) {
-        Write-Error "Refusing to operate on the filesystem root: $Path" -ErrorAction Continue
-        return $false
-    }
-    return $true
-}
-
-function Get-RelativePathCompat([string]$From, [string]$To) {
-    $fromUri = [Uri]::new("$From/")
-    $toUri   = [Uri]::new($To)
-    $rel     = $fromUri.MakeRelativeUri($toUri).ToString()
-    return [Uri]::UnescapeDataString($rel) -replace '/', [System.IO.Path]::DirectorySeparatorChar
-}
-
-# =============================================================================
-# Configuration
-# =============================================================================
-
-function Get-ConfigValue([object]$Config, [string]$Key) {
-    if ($null -eq $Config) { return $null }
-    $props = $Config.PSObject.Properties
-    if ($null -eq $props) { return $null }
-    $match = $props.Match($Key)
-    if ($match.Count -gt 0) {
-        return $match[0].Value
-    }
-    return $null
-}
-
-function Read-ConfigFile([string]$Path) {
-    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
-    try {
-        $raw = Get-Content -LiteralPath $Path -Raw -Encoding UTF8
-        return ($raw | ConvertFrom-Json)
-    }
-    catch {
-        Write-Warning "Failed to parse config file: $Path -- $_"
-        return $null
-    }
-}
-
-function Merge-ToolConfig([object]$Base, [object]$Layer) {
-    if ($null -eq $Layer) { return $Base }
-    if ($null -eq $Base)  { return $Layer }
-
-    # Deep-copy base properties into a fresh object
-    $merged = [PSCustomObject]@{}
-    foreach ($p in $Base.PSObject.Properties) {
-        $merged | Add-Member -MemberType NoteProperty -Name $p.Name -Value $p.Value
-    }
-
-    foreach ($prop in $Layer.PSObject.Properties) {
-        $key   = $prop.Name
-        $value = $prop.Value
-
-        if ($value -is [System.Array]) {
-            # Arrays: append + deduplicate
-            $existing = Get-ConfigValue $merged $key
-            if ($null -ne $existing -and $existing -is [System.Array]) {
-                $combined = [System.Collections.Generic.List[string]]::new()
-                $seen     = [System.Collections.Generic.HashSet[string]]::new(
-                    [StringComparer]::OrdinalIgnoreCase)
-                foreach ($item in $existing) {
-                    if ($seen.Add($item)) { $combined.Add($item) }
-                }
-                foreach ($item in $value) {
-                    if ($seen.Add($item)) { $combined.Add($item) }
-                }
-                $merged | Add-Member -MemberType NoteProperty -Name $key -Value $combined.ToArray() -Force
-            }
-            else {
-                $merged | Add-Member -MemberType NoteProperty -Name $key -Value $value -Force
-            }
-        }
-        else {
-            # Scalars: last writer wins
-            $merged | Add-Member -MemberType NoteProperty -Name $key -Value $value -Force
-        }
-    }
-
-    return $merged
-}
-
-function Resolve-EffectiveConfig([string]$Root, [string]$ExplicitConfigFile) {
-    # Start with empty config
-    $config = [PSCustomObject]@{}
-
-    # Layer 1: $HOME/delphi-codesign-azure.json
-    $homeDir = if ($env:DELPHI_CODESIGN_AZURE_HOME_OVERRIDE) {
-        $env:DELPHI_CODESIGN_AZURE_HOME_OVERRIDE
-    } else {
-        $HOME
-    }
-    $homeConfig = Read-ConfigFile (Join-Path $homeDir 'delphi-codesign-azure.json')
-    $config = Merge-ToolConfig $config $homeConfig
-
-    # Layer 2: upward traversal (if searchParentFolders enabled)
-    $searchParents = Get-ConfigValue $config 'searchParentFolders'
-    # Check project-level config first to see if traversal is enabled
-    $projectConfig = Read-ConfigFile (Join-Path $Root 'delphi-codesign-azure.json')
-    $localConfig   = Read-ConfigFile (Join-Path $Root 'delphi-codesign-azure.local.json')
-    if ($null -eq $searchParents) {
-        $searchParents = Get-ConfigValue $projectConfig 'searchParentFolders'
-    }
-    if ($null -eq $searchParents) {
-        $searchParents = Get-ConfigValue $localConfig 'searchParentFolders'
-    }
-
-    if ($searchParents -eq $true) {
-        $parentConfigs = [System.Collections.Generic.List[object]]::new()
-        $current = [System.IO.Directory]::GetParent($Root)
-        while ($null -ne $current) {
-            $parentFile = Join-Path $current.FullName 'delphi-codesign-azure.json'
-            $parentCfg  = Read-ConfigFile $parentFile
-            if ($null -ne $parentCfg) {
-                $parentConfigs.Add($parentCfg)
-                $stop = Get-ConfigValue $parentCfg 'searchParentFolders'
-                if ($stop -eq $false) { break }
-            }
-            $current = $current.Parent
-        }
-        # Apply from outermost to innermost (innermost wins)
-        $parentConfigs.Reverse()
-        foreach ($pc in $parentConfigs) {
-            $config = Merge-ToolConfig $config $pc
-        }
-    }
-
-    # Layer 3: project-level config
-    $config = Merge-ToolConfig $config $projectConfig
-
-    # Layer 4: local override config
-    $config = Merge-ToolConfig $config $localConfig
-
-    # Layer 5: explicit -ConfigFile
-    if (-not [string]::IsNullOrEmpty($ExplicitConfigFile)) {
-        $explicitCfg = Read-ConfigFile $ExplicitConfigFile
-        if ($null -eq $explicitCfg) {
-            Write-Error "Config file not found or invalid: $ExplicitConfigFile" -ErrorAction Continue
-            exit $ExitFatal
-        }
-        $config = Merge-ToolConfig $config $explicitCfg
-    }
-
-    return $config
-}
-
-# =============================================================================
-# Verify command -- signtool discovery and invocation
+# Signtool discovery
 # =============================================================================
 
 function Find-SignTool([string]$ExplicitPath) {
@@ -380,6 +139,10 @@ function Find-SignTool([string]$ExplicitPath) {
     return $found
 }
 
+# =============================================================================
+# Verify command
+# =============================================================================
+
 function Invoke-SignToolVerify([string]$SignToolExe, [string]$TargetFile) {
     $output = cmd.exe /c "`"$SignToolExe`" verify /pa /v `"$TargetFile`"" 2>&1
     return @{
@@ -389,7 +152,7 @@ function Invoke-SignToolVerify([string]$SignToolExe, [string]$TargetFile) {
 }
 
 # =============================================================================
-# Sign command -- Azure Trusted Signing
+# Sign command
 # =============================================================================
 
 function Import-EnvFile([string]$Path) {
@@ -427,6 +190,41 @@ function Invoke-SignToolSign([string]$SignToolExe, [string]$DlibDll, [string]$Me
 }
 
 # =============================================================================
+# Output helpers
+# =============================================================================
+
+function Write-ResultOutput([string]$Command, [hashtable]$Envelope) {
+    switch ($Format) {
+        'json'   { Write-Output ($Envelope | ConvertTo-Json -Depth 5 -Compress) }
+        'object' {
+            $obj = [PSCustomObject]@{ ok = $Envelope.ok; command = $Command; tool = [PSCustomObject]$Envelope.tool }
+            if ($Envelope.ContainsKey('result')) {
+                $resultObj = if ($Envelope.result -is [System.Collections.IDictionary]) { [PSCustomObject]$Envelope.result } else { $Envelope.result }
+                $obj | Add-Member -MemberType NoteProperty -Name 'result' -Value $resultObj
+            }
+            if ($Envelope.ContainsKey('error')) {
+                $obj | Add-Member -MemberType NoteProperty -Name 'error' -Value ([PSCustomObject]$Envelope.error)
+            }
+            Write-Output $obj
+        }
+    }
+}
+
+function Write-ErrorResult([string]$Command, [int]$Code, [string]$Message) {
+    $envelope = @{
+        ok      = $false
+        command = $Command
+        tool    = @{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }
+        error   = @{ code = $Code; message = $Message }
+    }
+    switch ($Format) {
+        'json'   { Write-Output ($envelope | ConvertTo-Json -Depth 5 -Compress) }
+        'object' { Write-ResultOutput $Command $envelope }
+        default  { Write-Error $Message -ErrorAction Continue }
+    }
+}
+
+# =============================================================================
 # Main execution
 # =============================================================================
 
@@ -444,48 +242,14 @@ if ($Verify) {
             $resolvedFile = Resolve-Path -LiteralPath $FilePath -ErrorAction SilentlyContinue
         }
         if ($null -eq $resolvedFile) {
-            $msg = "File not found: $FilePath"
-            switch ($Format) {
-                'json' {
-                    Write-Output (@{
-                        ok = $false; command = 'verify'
-                        tool = @{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }
-                        error = @{ code = $ExitFatal; message = $msg }
-                    } | ConvertTo-Json -Depth 5 -Compress)
-                }
-                'object' {
-                    Write-Output ([PSCustomObject]@{
-                        ok = $false; command = 'verify'
-                        tool = [PSCustomObject]@{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }
-                        error = [PSCustomObject]@{ code = $ExitFatal; message = $msg }
-                    })
-                }
-                default { Write-Error $msg -ErrorAction Continue }
-            }
+            Write-ErrorResult 'verify' $ExitFatal "File not found: $FilePath"
             exit $ExitFatal
         }
         $resolvedFilePath = $resolvedFile.ProviderPath
 
         $signtool = Find-SignTool $SignToolPath
         if ($null -eq $signtool) {
-            $msg = 'signtool.exe not found. Install the Windows SDK or pass -SignToolPath.'
-            switch ($Format) {
-                'json' {
-                    Write-Output (@{
-                        ok = $false; command = 'verify'
-                        tool = @{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }
-                        error = @{ code = $ExitFatal; message = $msg }
-                    } | ConvertTo-Json -Depth 5 -Compress)
-                }
-                'object' {
-                    Write-Output ([PSCustomObject]@{
-                        ok = $false; command = 'verify'
-                        tool = [PSCustomObject]@{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }
-                        error = [PSCustomObject]@{ code = $ExitFatal; message = $msg }
-                    })
-                }
-                default { Write-Error $msg -ErrorAction Continue }
-            }
+            Write-ErrorResult 'verify' $ExitFatal 'signtool.exe not found. Install the Windows SDK or pass -SignToolPath.'
             exit $ExitFatal
         }
 
@@ -493,65 +257,28 @@ if ($Verify) {
         $signed = ($result.ExitCode -eq 0)
         $outputLines = @($result.Output -split '\r?\n')
 
-        switch ($Format) {
-            'json' {
-                $envelope = @{
-                    ok      = $signed
-                    command = 'verify'
-                    tool    = @{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }
-                    result  = @{
-                        filePath         = $resolvedFilePath
-                        signed           = $signed
-                        signtoolExitCode = $result.ExitCode
-                        signtoolOutput   = $outputLines
-                    }
-                }
-                Write-Output ($envelope | ConvertTo-Json -Depth 5 -Compress)
-            }
-            'object' {
-                Write-Output ([PSCustomObject]@{
-                    ok      = $signed
-                    command = 'verify'
-                    tool    = [PSCustomObject]@{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }
-                    result  = [PSCustomObject]@{
-                        filePath         = $resolvedFilePath
-                        signed           = $signed
-                        signtoolExitCode = $result.ExitCode
-                        signtoolOutput   = $outputLines
-                    }
-                })
-            }
-            default {
-                Write-Host $result.Output
+        $envelope = @{
+            ok      = $signed
+            command = 'verify'
+            tool    = @{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }
+            result  = @{
+                filePath         = $resolvedFilePath
+                signed           = $signed
+                signtoolExitCode = $result.ExitCode
+                signtoolOutput   = $outputLines
             }
         }
 
-        if ($signed) {
-            exit $ExitSuccess
+        switch ($Format) {
+            'text'   { Write-Host $result.Output }
+            default  { Write-ResultOutput 'verify' $envelope }
         }
-        else {
-            exit $ExitDirty
-        }
+
+        if ($signed) { exit $ExitSuccess }
+        else { exit $ExitDirty }
     }
     catch {
-        $msg = "$_"
-        switch ($Format) {
-            'json' {
-                Write-Output (@{
-                    ok = $false; command = 'verify'
-                    tool = @{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }
-                    error = @{ code = $ExitFatal; message = $msg }
-                } | ConvertTo-Json -Depth 5 -Compress)
-            }
-            'object' {
-                Write-Output ([PSCustomObject]@{
-                    ok = $false; command = 'verify'
-                    tool = [PSCustomObject]@{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }
-                    error = [PSCustomObject]@{ code = $ExitFatal; message = $msg }
-                })
-            }
-            default { Write-Error "Fatal error: $_" -ErrorAction Continue }
-        }
+        Write-ErrorResult 'verify' $ExitFatal "$_"
         exit $ExitFatal
     }
 }
@@ -568,25 +295,16 @@ if ($Sign) {
         # Find signtool.exe
         $signtool = Find-SignTool $SignToolPath
         if ($null -eq $signtool) {
-            $msg = 'signtool.exe not found. Install the Windows SDK or pass -SignToolPath.'
-            switch ($Format) {
-                'json'   { Write-Output (@{ ok = $false; command = 'sign'; tool = @{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }; error = @{ code = $ExitFatal; message = $msg } } | ConvertTo-Json -Depth 5 -Compress) }
-                'object' { Write-Output ([PSCustomObject]@{ ok = $false; command = 'sign'; tool = [PSCustomObject]@{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }; error = [PSCustomObject]@{ code = $ExitFatal; message = $msg } }) }
-                default  { Write-Error $msg -ErrorAction Continue }
-            }
+            Write-ErrorResult 'sign' $ExitFatal 'signtool.exe not found. Install the Windows SDK or pass -SignToolPath.'
             exit $ExitFatal
         }
 
         # Find Azure.CodeSigning.Dlib.dll
         $dlib = Find-Dlib $DlibPath
         if ($null -eq $dlib) {
-            $msg = "Azure.CodeSigning.Dlib.dll not found. Install via: winget install -e --id Microsoft.Azure.TrustedSigningClientTools"
-            if (-not [string]::IsNullOrEmpty($DlibPath)) { $msg = "Azure.CodeSigning.Dlib.dll not found at: $DlibPath" }
-            switch ($Format) {
-                'json'   { Write-Output (@{ ok = $false; command = 'sign'; tool = @{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }; error = @{ code = $ExitFatal; message = $msg } } | ConvertTo-Json -Depth 5 -Compress) }
-                'object' { Write-Output ([PSCustomObject]@{ ok = $false; command = 'sign'; tool = [PSCustomObject]@{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }; error = [PSCustomObject]@{ code = $ExitFatal; message = $msg } }) }
-                default  { Write-Error $msg -ErrorAction Continue }
-            }
+            $msg = if (-not [string]::IsNullOrEmpty($DlibPath)) { "Azure.CodeSigning.Dlib.dll not found at: $DlibPath" }
+                   else { 'Azure.CodeSigning.Dlib.dll not found. Install via: winget install -e --id Microsoft.Azure.TrustedSigningClientTools' }
+            Write-ErrorResult 'sign' $ExitFatal $msg
             exit $ExitFatal
         }
 
@@ -596,24 +314,14 @@ if ($Sign) {
             $metadata = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Definition) 'metadata.json'
         }
         if (-not (Test-Path -LiteralPath $metadata -PathType Leaf)) {
-            $msg = "Metadata JSON not found at: $metadata"
-            switch ($Format) {
-                'json'   { Write-Output (@{ ok = $false; command = 'sign'; tool = @{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }; error = @{ code = $ExitFatal; message = $msg } } | ConvertTo-Json -Depth 5 -Compress) }
-                'object' { Write-Output ([PSCustomObject]@{ ok = $false; command = 'sign'; tool = [PSCustomObject]@{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }; error = [PSCustomObject]@{ code = $ExitFatal; message = $msg } }) }
-                default  { Write-Error $msg -ErrorAction Continue }
-            }
+            Write-ErrorResult 'sign' $ExitFatal "Metadata JSON not found at: $metadata"
             exit $ExitFatal
         }
 
         # Validate Azure credentials
         foreach ($var in @('AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET')) {
             if (-not [Environment]::GetEnvironmentVariable($var)) {
-                $msg = "Environment variable $var is not set. Pass -EnvFile or set it in the environment."
-                switch ($Format) {
-                    'json'   { Write-Output (@{ ok = $false; command = 'sign'; tool = @{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }; error = @{ code = $ExitFatal; message = $msg } } | ConvertTo-Json -Depth 5 -Compress) }
-                    'object' { Write-Output ([PSCustomObject]@{ ok = $false; command = 'sign'; tool = [PSCustomObject]@{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }; error = [PSCustomObject]@{ code = $ExitFatal; message = $msg } }) }
-                    default  { Write-Error $msg -ErrorAction Continue }
-                }
+                Write-ErrorResult 'sign' $ExitFatal "Environment variable $var is not set. Pass -EnvFile or set it in the environment."
                 exit $ExitFatal
             }
         }
@@ -655,38 +363,24 @@ if ($Sign) {
         $allOk = ($failed -eq 0)
         $total = $Files.Count
 
+        $envelope = @{
+            ok      = $allOk
+            command = 'sign'
+            tool    = @{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }
+            result  = @{
+                signed = $signed
+                failed = $failed
+                total  = $total
+                items  = @($items)
+            }
+        }
+
         switch ($Format) {
-            'json' {
-                $envelope = @{
-                    ok      = $allOk
-                    command = 'sign'
-                    tool    = @{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }
-                    result  = @{
-                        signed = $signed
-                        failed = $failed
-                        total  = $total
-                        items  = @($items)
-                    }
-                }
-                Write-Output ($envelope | ConvertTo-Json -Depth 5 -Compress)
-            }
-            'object' {
-                Write-Output ([PSCustomObject]@{
-                    ok      = $allOk
-                    command = 'sign'
-                    tool    = [PSCustomObject]@{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }
-                    result  = [PSCustomObject]@{
-                        signed = $signed
-                        failed = $failed
-                        total  = $total
-                        items  = @($items | ForEach-Object { [PSCustomObject]$_ })
-                    }
-                })
-            }
-            default {
+            'text' {
                 Write-Host ''
                 Write-Host "Signed: $signed  Failed: $failed  Total: $total"
             }
+            default { Write-ResultOutput 'sign' $envelope }
         }
 
         if ($allOk) { exit $ExitSuccess }
@@ -694,73 +388,7 @@ if ($Sign) {
         else { exit $ExitFatal }
     }
     catch {
-        $msg = "$_"
-        switch ($Format) {
-            'json'   { Write-Output (@{ ok = $false; command = 'sign'; tool = @{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }; error = @{ code = $ExitFatal; message = $msg } } | ConvertTo-Json -Depth 5 -Compress) }
-            'object' { Write-Output ([PSCustomObject]@{ ok = $false; command = 'sign'; tool = [PSCustomObject]@{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }; error = [PSCustomObject]@{ code = $ExitFatal; message = $msg } }) }
-            default  { Write-Error "Fatal error: $_" -ErrorAction Continue }
-        }
+        Write-ErrorResult 'sign' $ExitFatal "$_"
         exit $ExitFatal
     }
-}
-
-# --- Main parameter set (future commands) ---
-
-try {
-
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
-
-    # Resolve root path
-    $root = Resolve-ToolRoot $RootPath
-    if (-not (Test-SafeRoot $root)) {
-        exit $ExitFatal
-    }
-
-    # Resolve configuration
-    $effectiveConfig = Resolve-EffectiveConfig -Root $root -ExplicitConfigFile $ConfigFile
-
-    # Apply CLI overrides to effective config (CLI wins over config files)
-    # Example:
-    # if ($PSBoundParameters.ContainsKey('OutputLevel')) {
-    #     $effectiveConfig | Add-Member -MemberType NoteProperty -Name 'outputLevel' -Value $OutputLevel -Force
-    # }
-
-    # -ShowConfig: display merged config and exit
-    if ($ShowConfig) {
-        if ($Json) {
-            Write-Output ($effectiveConfig | ConvertTo-Json -Depth 5)
-        }
-        else {
-            Write-Host "Effective configuration for: $root"
-            Write-Host ($effectiveConfig | ConvertTo-Json -Depth 5)
-        }
-        exit $ExitSuccess
-    }
-
-    # -Check and -WhatIf are mutually exclusive
-    if ($Check -and $WhatIfPreference) {
-        Write-Error '-Check and -WhatIf cannot be used together.' -ErrorAction Continue
-        exit $ExitFatal
-    }
-
-    # =========================================================================
-    # Tool-specific logic goes here.
-    #
-    # See CUSTOMIZATION.md for patterns:
-    #   - File scanning
-    #   - Engine discovery and dispatch
-    #   - Check mode implementation
-    #   - Result collection and reporting
-    # =========================================================================
-
-    # Placeholder: report success
-    $sw.Stop()
-
-    Write-Summary "Completed in $(Format-Duration $sw.Elapsed.TotalMilliseconds)"
-    exit $ExitSuccess
-
-}
-catch {
-    Write-Error "Fatal error: $_" -ErrorAction Continue
-    exit $ExitFatal
 }
