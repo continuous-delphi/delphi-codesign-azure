@@ -14,6 +14,8 @@ All notable changes to this project will be documented in this file.
 - `.env` file loading for Azure credentials (AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET)
 - Auto-discovery of `Azure.CodeSigning.Dlib.dll` from default install location
 [#2](https://github.com/continuous-delphi/delphi-codesign-azure/issues/2)
+- Document `metadata.json` setup in README with field descriptions and Azure portal instructions
+[#3](https://github.com/continuous-delphi/delphi-codesign-azure/issues/3)
 
 ---
 

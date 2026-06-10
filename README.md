@@ -147,6 +147,46 @@ pwsh -File source/delphi-codesign-azure.ps1 -Version -Format json
 
 ---
 
+## metadata.json
+
+The `-Sign` command requires a `metadata.json` file that tells Azure
+Trusted Signing which endpoint, account, and certificate profile to use.
+
+```json
+{
+  "Endpoint": "https://eus.codesigning.azure.net/",
+  "CodeSigningAccountName": "yourAccountName",
+  "CertificateProfileName": "yourCertificateProfileName"
+}
+```
+
+See [docs/metadata.json](docs/metadata.json) for an example.
+
+### Fields
+
+| Field | Description |
+|-------|-------------|
+| `Endpoint` | Azure Trusted Signing regional endpoint URL. Use `eus` (East US), `wus` (West US), `neu` (North Europe), or `weu` (West Europe) |
+| `CodeSigningAccountName` | Name of the Trusted Signing account in the Azure portal |
+| `CertificateProfileName` | Name of the certificate profile under the signing account |
+
+### Location
+
+By default the tool looks for `metadata.json` in the same directory as
+the script (`source/`). Override with `-MetadataPath`:
+
+```powershell
+pwsh -File source/delphi-codesign-azure.ps1 -Sign -Files app.exe -MetadataPath path/to/metadata.json
+```
+
+### Obtaining the values
+
+1. **Endpoint**: Azure portal > Trusted Signing account > Overview > Account URI
+2. **CodeSigningAccountName**: Azure portal > Trusted Signing account > Overview > Name
+3. **CertificateProfileName**: Azure portal > Trusted Signing account > Certificate profiles > Profile name
+
+---
+
 ## Output Formats
 
 The `-Format` parameter controls output across all commands:

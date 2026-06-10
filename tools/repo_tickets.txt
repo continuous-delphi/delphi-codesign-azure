@@ -66,3 +66,28 @@ Acceptance criteria:
 - [ ] Exits 3 when signtool, dlib, metadata, or credentials missing
 - [ ] JSON output uses standard envelope
 - [ ] All Pester tests pass
+---
+Title: Document metadata.json setup in README
+Issue: #3
+Status: closed
+Labels: documentation
+Body:
+Add a section to README.md explaining the `metadata.json` file required
+by the `-Sign` command.
+
+The section should cover:
+- Purpose: tells Azure Trusted Signing which endpoint, account, and
+  certificate profile to use
+- Location: must be passed via `-MetadataPath` or placed next to the
+  script (default lookup)
+- Fields: Endpoint, CodeSigningAccountName, CertificateProfileName
+- Reference the example file at `docs/metadata.json`
+- Link to Azure portal for obtaining the values
+
+An example `docs/metadata.json` with placeholder values already exists.
+
+Acceptance criteria:
+- [ ] README has a metadata.json section under Prerequisites or a new
+      Configuration heading
+- [ ] docs/metadata.json example file is referenced
+- [ ] All three JSON fields are explained
