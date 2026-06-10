@@ -1,0 +1,7 @@
+# Ticket list for delphi-TOOLNAME
+# See C:\code\dev-automation-tooling\create-ticket-formatinfo.md for format.
+#
+# To create issues on GitHub:
+#   pwsh -File C:\code\dev-automation-tooling\create-github-issues.ps1 `
+#     -RepoUrl https://github.com/continuous-delphi/delphi-TOOLNAME `
+#     -TicketListFile tools\repo_tickets.txt
