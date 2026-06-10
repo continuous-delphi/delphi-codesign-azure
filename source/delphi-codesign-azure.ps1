@@ -49,6 +49,8 @@ pwsh -File source/delphi-codesign-azure.ps1 -Version -Format json
 [CmdletBinding(DefaultParameterSetName = 'Version')]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
   Justification='Write-Host is intentional: standalone CLI tool streams status to the console host.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'OutputFile',
+  Justification='Consumed by Write-OutputFile helper function.')]
 param(
     [Parameter(ParameterSetName = 'Version', Mandatory)]
     [switch]$Version,
@@ -82,7 +84,11 @@ param(
     [string]$MetadataPath,
 
     [Parameter(ParameterSetName = 'Sign')]
-    [string]$EnvFile
+    [string]$EnvFile,
+
+    [Parameter(ParameterSetName = 'Verify')]
+    [Parameter(ParameterSetName = 'Sign')]
+    [string]$OutputFile
 )
 
 Set-StrictMode -Version Latest
@@ -94,7 +100,7 @@ $ExitDirty          = 1   # signature invalid or file not signed
 $ExitPartialFailure = 2   # some files failed to sign
 $ExitFatal          = 3   # prerequisites missing, file not found, etc.
 
-$script:ToolVersion = '0.5.15'
+$script:ToolVersion = '0.5.16'
 
 # =============================================================================
 # Version info
@@ -210,6 +216,12 @@ function Write-ResultOutput([string]$Command, [hashtable]$Envelope) {
     }
 }
 
+function Write-OutputFile([hashtable]$Envelope) {
+    if (-not [string]::IsNullOrEmpty($OutputFile)) {
+        $Envelope | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $OutputFile -Encoding UTF8
+    }
+}
+
 function Write-ErrorResult([string]$Command, [int]$Code, [string]$Message) {
     $envelope = @{
         ok      = $false
@@ -268,6 +280,8 @@ if ($Verify) {
                 signtoolOutput   = $outputLines
             }
         }
+
+        Write-OutputFile $envelope
 
         switch ($Format) {
             'text'   { Write-Host $result.Output }
@@ -374,6 +388,8 @@ if ($Sign) {
                 items  = @($items)
             }
         }
+
+        Write-OutputFile $envelope
 
         switch ($Format) {
             'text' {
