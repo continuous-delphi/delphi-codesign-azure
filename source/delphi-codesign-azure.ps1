@@ -2,7 +2,7 @@
 # -----------------------------------------------------------------------------
 # delphi-codesign-azure
 #
-# (One-line description of what this tool does.)
+# Authenticode code signing and verification via Azure Trusted Signing.
 #
 # Part of Continuous-Delphi: Focused on strengthening Delphi's continued success
 # https://github.com/continuous-delphi
@@ -21,25 +21,29 @@
 
 <#
 .SYNOPSIS
-(Brief synopsis of what the tool does.)
+Authenticode code signing and verification using Azure Trusted Signing.
 
 .DESCRIPTION
-(Detailed description.)
+Verifies Authenticode signatures on executables and libraries using
+signtool.exe from the Windows SDK.
 
 Exit codes:
-  0  success
-  1  check mode found items needing attention
+  0  success (signature valid)
+  1  signature invalid or file not signed
   2  partial failure
-  3  fatal error
+  3  fatal error (signtool not found, file not found, etc.)
 
 .EXAMPLE
-pwsh -File source/delphi-codesign-azure.ps1
+pwsh -File source/delphi-codesign-azure.ps1 -Verify -FilePath app.exe
+
+.EXAMPLE
+pwsh -File source/delphi-codesign-azure.ps1 -Verify -FilePath app.exe -Format json
 
 .EXAMPLE
 pwsh -File source/delphi-codesign-azure.ps1 -Version -Format json
 #>
 
-[CmdletBinding(SupportsShouldProcess, DefaultParameterSetName = 'Main')]
+[CmdletBinding(SupportsShouldProcess, DefaultParameterSetName = 'Version')]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
   Justification='Write-Host is intentional: standalone CLI tool streams status to the console host.')]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'OutputLevel',
@@ -48,8 +52,6 @@ pwsh -File source/delphi-codesign-azure.ps1 -Version -Format json
   Justification='Template placeholder: consumed by tool-specific logic added during customization.')]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'OutputFile',
   Justification='Template placeholder: consumed by tool-specific logic added during customization.')]
-[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', 'ExitDirty',
-  Justification='Exit code constant available for tool-specific logic.')]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', 'ExitPartialFailure',
   Justification='Exit code constant available for tool-specific logic.')]
 param(
@@ -57,8 +59,18 @@ param(
     [switch]$Version,
 
     [Parameter(ParameterSetName = 'Version')]
-    [ValidateSet('text', 'json')]
-    [string]$Format = 'text',
+    [Parameter(ParameterSetName = 'Verify')]
+    [ValidateSet('object', 'text', 'json')]
+    [string]$Format = 'object',
+
+    [Parameter(ParameterSetName = 'Verify', Mandatory)]
+    [switch]$Verify,
+
+    [Parameter(ParameterSetName = 'Verify', Mandatory)]
+    [string]$FilePath,
+
+    [Parameter(ParameterSetName = 'Verify')]
+    [string]$SignToolPath,
 
     [Parameter(ParameterSetName = 'Main')]
     [string]$RootPath,
@@ -86,23 +98,7 @@ param(
     [string]$OutputFile
 
     # -------------------------------------------------------------------------
-    # Add tool-specific parameters here.  Examples:
-    #
-    # [Parameter(ParameterSetName = 'Main')]
-    # [ValidateSet('engine1', 'engine2')]
-    # [string]$Engine = 'engine1',
-    #
-    # [Parameter(ParameterSetName = 'Main')]
-    # [string]$EnginePath,
-    #
-    # [Parameter(ParameterSetName = 'Main')]
-    # [string[]]$IncludeFilePattern = @(),
-    #
-    # [Parameter(ParameterSetName = 'Main')]
-    # [string[]]$ExcludeDirectoryPattern = @(),
-    #
-    # [Parameter(ParameterSetName = 'Main')]
-    # [int]$TimeoutSeconds = 300
+    # Add tool-specific parameters here.
     # -------------------------------------------------------------------------
 )
 
@@ -111,11 +107,11 @@ $ErrorActionPreference = 'Stop'
 
 # Exit code constants
 $ExitSuccess        = 0
-$ExitDirty          = 1   # -Check found items needing attention
+$ExitDirty          = 1   # -Check found items needing attention / signature invalid
 $ExitPartialFailure = 2   # some items failed
 $ExitFatal          = 3   # engine not found, bad root, unhandled error
 
-$script:ToolVersion = '0.1.0'
+$script:ToolVersion = '0.1.1'
 
 # =============================================================================
 # Version info
@@ -130,11 +126,10 @@ if ($Version) {
             version = $script:ToolVersion
         }
     }
-    if ($Format -eq 'json') {
-        Write-Output ($info | ConvertTo-Json -Depth 5 -Compress)
-    }
-    else {
-        Write-Output "delphi-codesign-azure $($script:ToolVersion)"
+    switch ($Format) {
+        'json'   { Write-Output ($info | ConvertTo-Json -Depth 5 -Compress) }
+        'text'   { Write-Output "delphi-codesign-azure $($script:ToolVersion)" }
+        default  { Write-Output ([PSCustomObject]$info) }
     }
     exit $ExitSuccess
 }
@@ -346,23 +341,34 @@ function Resolve-EffectiveConfig([string]$Root, [string]$ExplicitConfigFile) {
 }
 
 # =============================================================================
-# Engine discovery (if needed -- see CUSTOMIZATION.md)
+# Verify command -- signtool discovery and invocation
 # =============================================================================
 
-# function Find-Engine1 {
-#     param([string]$ExplicitPath)
-#     if (-not [string]::IsNullOrEmpty($ExplicitPath)) {
-#         if (Test-Path -LiteralPath $ExplicitPath -PathType Leaf) {
-#             return $ExplicitPath
-#         }
-#         $found = Get-Command $ExplicitPath -ErrorAction SilentlyContinue
-#         if ($null -ne $found) { return $found.Source }
-#         return $null
-#     }
-#     $found = Get-Command 'engine1.exe' -ErrorAction SilentlyContinue
-#     if ($null -ne $found) { return $found.Source }
-#     return $null
-# }
+function Find-SignTool([string]$ExplicitPath) {
+    if (-not [string]::IsNullOrEmpty($ExplicitPath)) {
+        if (Test-Path -LiteralPath $ExplicitPath -PathType Leaf) {
+            return $ExplicitPath
+        }
+        $found = Get-Command $ExplicitPath -ErrorAction SilentlyContinue
+        if ($null -ne $found) { return $found.Source }
+        return $null
+    }
+    $sdkRoot = 'C:\Program Files (x86)\Windows Kits\10\bin'
+    if (-not (Test-Path -LiteralPath $sdkRoot)) { return $null }
+    $found = Get-ChildItem -Path $sdkRoot -Filter 'signtool.exe' -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.DirectoryName -like '*\x64' } |
+        Sort-Object { $_.DirectoryName } -Descending |
+        Select-Object -First 1 -ExpandProperty FullName
+    return $found
+}
+
+function Invoke-SignToolVerify([string]$SignToolExe, [string]$TargetFile) {
+    $output = cmd.exe /c "`"$SignToolExe`" verify /pa /v `"$TargetFile`"" 2>&1
+    return @{
+        ExitCode = $LASTEXITCODE
+        Output   = ($output | Out-String).TrimEnd()
+    }
+}
 
 # =============================================================================
 # Main execution
@@ -372,6 +378,129 @@ function Resolve-EffectiveConfig([string]$Root, [string]$ExplicitConfigFile) {
 # functions into the caller's scope but skip the main execution block.
 # This allows Pester tests to unit-test individual functions directly.
 if ($MyInvocation.InvocationName -eq '.') { return }
+
+# --- Verify command ---
+
+if ($Verify) {
+    try {
+        $resolvedFile = $null
+        if (-not [string]::IsNullOrEmpty($FilePath)) {
+            $resolvedFile = Resolve-Path -LiteralPath $FilePath -ErrorAction SilentlyContinue
+        }
+        if ($null -eq $resolvedFile) {
+            $msg = "File not found: $FilePath"
+            switch ($Format) {
+                'json' {
+                    Write-Output (@{
+                        ok = $false; command = 'verify'
+                        tool = @{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }
+                        error = @{ code = $ExitFatal; message = $msg }
+                    } | ConvertTo-Json -Depth 5 -Compress)
+                }
+                'object' {
+                    Write-Output ([PSCustomObject]@{
+                        ok = $false; command = 'verify'
+                        tool = [PSCustomObject]@{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }
+                        error = [PSCustomObject]@{ code = $ExitFatal; message = $msg }
+                    })
+                }
+                default { Write-Error $msg -ErrorAction Continue }
+            }
+            exit $ExitFatal
+        }
+        $resolvedFilePath = $resolvedFile.ProviderPath
+
+        $signtool = Find-SignTool $SignToolPath
+        if ($null -eq $signtool) {
+            $msg = 'signtool.exe not found. Install the Windows SDK or pass -SignToolPath.'
+            switch ($Format) {
+                'json' {
+                    Write-Output (@{
+                        ok = $false; command = 'verify'
+                        tool = @{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }
+                        error = @{ code = $ExitFatal; message = $msg }
+                    } | ConvertTo-Json -Depth 5 -Compress)
+                }
+                'object' {
+                    Write-Output ([PSCustomObject]@{
+                        ok = $false; command = 'verify'
+                        tool = [PSCustomObject]@{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }
+                        error = [PSCustomObject]@{ code = $ExitFatal; message = $msg }
+                    })
+                }
+                default { Write-Error $msg -ErrorAction Continue }
+            }
+            exit $ExitFatal
+        }
+
+        $result = Invoke-SignToolVerify -SignToolExe $signtool -TargetFile $resolvedFilePath
+        $signed = ($result.ExitCode -eq 0)
+        $outputLines = @($result.Output -split '\r?\n')
+
+        switch ($Format) {
+            'json' {
+                $envelope = @{
+                    ok      = $signed
+                    command = 'verify'
+                    tool    = @{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }
+                    result  = @{
+                        filePath         = $resolvedFilePath
+                        signed           = $signed
+                        signtoolExitCode = $result.ExitCode
+                        signtoolOutput   = $outputLines
+                    }
+                }
+                Write-Output ($envelope | ConvertTo-Json -Depth 5 -Compress)
+            }
+            'object' {
+                Write-Output ([PSCustomObject]@{
+                    ok      = $signed
+                    command = 'verify'
+                    tool    = [PSCustomObject]@{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }
+                    result  = [PSCustomObject]@{
+                        filePath         = $resolvedFilePath
+                        signed           = $signed
+                        signtoolExitCode = $result.ExitCode
+                        signtoolOutput   = $outputLines
+                    }
+                })
+            }
+            default {
+                Write-Host $result.Output
+            }
+        }
+
+        if ($signed) {
+            exit $ExitSuccess
+        }
+        else {
+            exit $ExitDirty
+        }
+    }
+    catch {
+        $msg = "$_"
+        switch ($Format) {
+            'json' {
+                Write-Output (@{
+                    ok = $false; command = 'verify'
+                    tool = @{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }
+                    error = @{ code = $ExitFatal; message = $msg }
+                } | ConvertTo-Json -Depth 5 -Compress)
+            }
+            'object' {
+                Write-Output ([PSCustomObject]@{
+                    ok = $false; command = 'verify'
+                    tool = [PSCustomObject]@{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }
+                    error = [PSCustomObject]@{ code = $ExitFatal; message = $msg }
+                })
+            }
+            default { Write-Error "Fatal error: $_" -ErrorAction Continue }
+        }
+        exit $ExitFatal
+    }
+}
+
+# --- Main parameter set (future commands) ---
 
 try {
 

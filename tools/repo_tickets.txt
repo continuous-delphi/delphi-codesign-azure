@@ -3,5 +3,27 @@
 #
 # To create issues on GitHub:
 #   pwsh -File C:\code\dev-automation-tooling\create-github-issues.ps1 `
-#     -RepoUrl https://github.com/continuous-delphi/delphi-TOOLNAME `
+#     -RepoUrl https://github.com/continuous-delphi/delphi-codesign-azure `
 #     -TicketListFile tools\repo_tickets.txt
+---
+Title: Add -Verify command
+Labels: enhancement
+Issue: #1
+Status: closed
+Body:
+Add a `-Verify` command that validates Authenticode signatures on
+executables and libraries using `signtool.exe verify /pa /v`.
+
+Requirements:
+- Auto-discover signtool.exe from the Windows SDK (latest x64 version)
+- Accept explicit `-SignToolPath` override
+- Support three output formats: object (default), text, json
+- JSON output uses standard Continuous-Delphi envelope (ok/command/tool/result)
+- Exit 0 for valid signature, 1 for invalid/unsigned, 3 for fatal errors
+
+Acceptance criteria:
+- [x] Verify signed executable returns exit 0
+- [x] Verify unsigned executable returns exit 1
+- [x] Missing file returns exit 3 with error envelope
+- [x] JSON output contains signed, filePath, signtoolExitCode, signtoolOutput
+- [x] All Pester tests pass

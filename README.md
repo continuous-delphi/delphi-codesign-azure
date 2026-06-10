@@ -3,7 +3,8 @@
 <!-- Badges -->
 [![CI](https://github.com/continuous-delphi/delphi-codesign-azure/actions/workflows/ci.yml/badge.svg)](https://github.com/continuous-delphi/delphi-codesign-azure/actions/workflows/ci.yml)
 
-A PowerShell utility for ... (one-line description).
+A PowerShell utility for Authenticode code signing and verification
+using Azure Trusted Signing and `signtool.exe`.
 
 Part of [Continuous-Delphi](https://github.com/continuous-delphi):
 Focused on strengthening Delphi's continued success.
@@ -13,80 +14,124 @@ Focused on strengthening Delphi's continued success.
 ## Quick Start
 
 ```powershell
-# PowerShell 7+
-pwsh -File source/delphi-codesign-azure.ps1
+# Verify a signed executable
+pwsh -File source/delphi-codesign-azure.ps1 -Verify -FilePath app.exe
 
-# Windows PowerShell 5.1
-powershell.exe -File source\delphi-codesign-azure.ps1
+# JSON output
+pwsh -File source/delphi-codesign-azure.ps1 -Verify -FilePath app.exe -Format json
+
+# Version info
+pwsh -File source/delphi-codesign-azure.ps1 -Version -Format text
 ```
 
 ---
 
-## Parameters
+## Commands
 
-| Name | Type | Default | Description |
-|------|------|---------|-------------|
-| `-RootPath` | string | current directory | Root directory to process |
-| `-OutputLevel` | string | `detailed` | Output verbosity: `detailed`, `summary`, `quiet` |
-| `-Json` | switch | | Emit JSON output instead of plain text |
-| `-Check` | switch | | Audit-only mode (exit 1 if changes needed) |
-| `-WhatIf` | switch | | Preview mode (no changes made) (common parameter via `SupportsShouldProcess`) |
-| `-Confirm` | switch | | Prompt before state-changing actions (common parameter via `SupportsShouldProcess`) |
-| `-ShowConfig` | switch | | Display merged configuration and exit |
-| `-ConfigFile` | string | | Explicit JSON configuration file path |
-| `-Version` | switch | | Display tool version and exit |
-| `-Format` | string | `text` | Output format for `-Version`: `text` or `json` |
+### `-Verify`
 
-<!-- Add tool-specific parameters above this line -->
+Verifies the Authenticode signature on a file using `signtool.exe verify /pa /v`.
 
----
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `-Verify` | switch | yes | Select the verify command |
+| `-FilePath` | string | yes | Path to the file to verify |
+| `-SignToolPath` | string | no | Explicit path to `signtool.exe`. Auto-discovered from the Windows SDK if omitted |
+| `-Format` | string | no | Output format: `object` (default), `text`, `json` |
 
-## Exit Codes
+**Exit codes:**
 
 | Code | Meaning |
 |------|---------|
-| 0 | Success |
-| 1 | Check mode found items needing attention |
-| 2 | Partial failure (some items failed) |
-| 3 | Fatal error (bad root, unhandled exception) |
+| 0 | Signature is valid |
+| 1 | Signature is invalid or file is not signed |
+| 3 | Fatal error (file not found, signtool not found) |
 
----
-
-## Configuration
-
-Configuration files are loaded from multiple locations with increasing
-priority. See [docs/configuration.md](docs/configuration.md) for details.
-
-```
-$HOME/delphi-codesign-azure.json              (user-level defaults)
-<RootPath>/delphi-codesign-azure.json         (project-level, committed)
-<RootPath>/delphi-codesign-azure.local.json   (local overrides, gitignored)
--ConfigFile <path>                       (explicit CI override)
-CLI parameters                           (highest priority)
-```
-
----
-
-## Examples
+**Examples:**
 
 ```powershell
-# Basic usage
-pwsh -File source/delphi-codesign-azure.ps1
+# Verify a signed executable (text output)
+pwsh -File source/delphi-codesign-azure.ps1 -Verify -FilePath app.exe -Format text
 
-# Check mode (CI validation)
-pwsh -File source/delphi-codesign-azure.ps1 -Check -OutputLevel quiet
+# JSON output for CI consumption
+pwsh -File source/delphi-codesign-azure.ps1 -Verify -FilePath app.exe -Format json
 
-# JSON output
-pwsh -File source/delphi-codesign-azure.ps1 -Json
+# Pipeline use (object output, default)
+$result = & source/delphi-codesign-azure.ps1 -Verify -FilePath app.exe
+$result.ok            # $true if signed
+$result.result.signed # $true if signed
 
-# Preview without changes
-pwsh -File source/delphi-codesign-azure.ps1 -WhatIf
+# Explicit signtool path
+pwsh -File source/delphi-codesign-azure.ps1 -Verify -FilePath app.exe -SignToolPath "C:\path\to\signtool.exe"
+```
 
-# Show merged configuration
-pwsh -File source/delphi-codesign-azure.ps1 -ShowConfig -Json
+**signtool.exe discovery:**
 
-# Version info
+When `-SignToolPath` is not specified, the tool searches
+`C:\Program Files (x86)\Windows Kits\10\bin` for the latest x64
+version of `signtool.exe`. Install the Windows SDK if it is not found:
+https://developer.microsoft.com/en-us/windows/downloads/windows-sdk/
+
+### `-Version`
+
+Displays tool name and version.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `-Version` | switch | yes | Select the version command |
+| `-Format` | string | no | Output format: `object` (default), `text`, `json` |
+
+**Examples:**
+
+```powershell
+# Text format
+pwsh -File source/delphi-codesign-azure.ps1 -Version -Format text
+# => delphi-codesign-azure 0.1.0
+
+# JSON format
 pwsh -File source/delphi-codesign-azure.ps1 -Version -Format json
+# => {"ok":true,"command":"version","tool":{"name":"delphi-codesign-azure","version":"0.1.0"}}
+```
+
+---
+
+## Output Formats
+
+The `-Format` parameter controls output across all commands:
+
+| Format | Description |
+|--------|-------------|
+| `object` | Default. Returns a `PSCustomObject` for pipeline use |
+| `text` | Human-readable text to the console |
+| `json` | Single-line compressed JSON for CI/scripting |
+
+### JSON Envelope
+
+Success:
+
+```json
+{
+  "ok": true,
+  "command": "verify",
+  "tool": { "name": "delphi-codesign-azure", "version": "0.1.0" },
+  "result": {
+    "filePath": "C:/path/to/file.exe",
+    "signed": true,
+    "signtoolExitCode": 0,
+    "signtoolOutput": ["..."]
+  }
+}
+```
+
+Error:
+
+```json
+{
+  "ok": false,
+  "command": "verify",
+  "tool": { "name": "delphi-codesign-azure", "version": "0.1.0" },
+  "error": { "code": 3, "message": "File not found: missing.exe" }
+}
 ```
 
 ---

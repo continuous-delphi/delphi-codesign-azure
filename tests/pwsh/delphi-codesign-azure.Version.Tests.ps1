@@ -14,10 +14,22 @@ Describe 'delphi-codesign-azure.ps1 -Version' {
         }
     }
 
-    Context 'text format (default)' {
+    Context 'object format (default)' {
 
         BeforeAll {
             $script:result = Invoke-ToolProcess -ScriptPath $script:ToolPath -Arguments @('-Version')
+        }
+
+        It 'exits with code 0' {
+            $script:result.ExitCode | Should -Be 0
+        }
+
+    }
+
+    Context 'text format' {
+
+        BeforeAll {
+            $script:result = Invoke-ToolProcess -ScriptPath $script:ToolPath -Arguments @('-Version', '-Format', 'text')
         }
 
         It 'exits with code 0' {
@@ -34,11 +46,6 @@ Describe 'delphi-codesign-azure.ps1 -Version' {
 
         It 'output contains the version number' {
             $script:result.StdOut[0] | Should -Match '\d+\.\d+\.\d+'
-        }
-
-        It 'produces the same output with -Format text' {
-            $explicit = Invoke-ToolProcess -ScriptPath $script:ToolPath -Arguments @('-Version', '-Format', 'text')
-            $explicit.StdOut[0] | Should -Be $script:result.StdOut[0]
         }
 
     }
