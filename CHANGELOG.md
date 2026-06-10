@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [0.1.2] - Unreleased
+## [0.1.2] - 2026-06-09
 
 - Add `-Sign` command: signs files using Azure Trusted Signing via `signtool.exe sign`
 - SHA256 file digest with RFC 3161 timestamping from `timestamp.acs.microsoft.com`
