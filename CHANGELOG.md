@@ -4,7 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [Unreleased]
+## [0.5.12] - 2026-06-09
+
+- Readme cleanup, ready for testing
 
 ## [0.1.2] - 2026-06-09
 
