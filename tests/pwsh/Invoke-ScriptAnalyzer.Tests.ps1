@@ -14,7 +14,7 @@ Describe 'PSScriptAnalyzer tests \' {
     Import-Module PSScriptAnalyzer -Force
 
     $repoRoot     = (Resolve-Path (Join-Path $PSScriptRoot '../../')).Path
-    $scriptPath   = Join-Path $repoRoot 'source' 'delphi-TOOLNAME.ps1'
+    $scriptPath   = Join-Path $repoRoot 'source' 'delphi-codesign-azure.ps1'
 
     $script:Findings = Invoke-ScriptAnalyzer `
       -Path $scriptPath `

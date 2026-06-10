@@ -1,6 +1,6 @@
 # JSON Output
 
-When `-Json` is active, `delphi-TOOLNAME` emits a single JSON object to
+When `-Json` is active, `delphi-codesign-azure` emits a single JSON object to
 standard output. All other text output is suppressed.
 
 ## Output Shape
@@ -31,7 +31,7 @@ When `-OutputFile <path>` is specified, a structured JSON result file is
 written for CI integration. This is the same data as `-Json` output but
 written to a file instead of stdout.
 
-The CI module wrapper (`Invoke-DelphiTOOLNAME` in delphi-powershell-ci)
+The CI module wrapper (`Invoke-Delphicodesign-azure` in delphi-powershell-ci)
 uses this file to parse results back into a PowerShell step result object.
 
 ## `-Version -Format json`
@@ -41,7 +41,7 @@ uses this file to parse results back into a PowerShell step result object.
   "ok": true,
   "command": "version",
   "tool": {
-    "name": "delphi-TOOLNAME",
+    "name": "delphi-codesign-azure",
     "version": "0.1.0"
   }
 }

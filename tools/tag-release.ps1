@@ -1,5 +1,5 @@
 # tools/tag-release.ps1
-# Creates and pushes a vX.Y.Z release tag for delphi-TOOLNAME.
+# Creates and pushes a vX.Y.Z release tag for delphi-codesign-azure.
 # Requires: PowerShell 7+, git (on PATH)
 #
 # Usage:
@@ -7,7 +7,7 @@
 #
 # The script validates preconditions before touching git:
 #   - Version argument matches X.Y.Z semver format
-#   - $script:ToolVersion in delphi-TOOLNAME.ps1 matches the Version argument
+#   - $script:ToolVersion in delphi-codesign-azure.ps1 matches the Version argument
 #   - CHANGELOG.md has an entry for the version
 #   - Working tree is clean (no uncommitted changes)
 #   - Current branch matches the default branch on origin
@@ -66,12 +66,12 @@ function Invoke-Git {
 # ---------------------------------------------------------------------------
 
 $repoRoot      = (Resolve-Path -Path (Join-Path -Path $PSScriptRoot -ChildPath '..')).Path
-$scriptFile    = Join-Path $repoRoot 'source' 'delphi-TOOLNAME.ps1'
+$scriptFile    = Join-Path $repoRoot 'source' 'delphi-codesign-azure.ps1'
 $changelogFile = Join-Path $repoRoot 'CHANGELOG.md'
 $tag           = "v$Version"
 
 Write-Host ""
-Write-Host "delphi-TOOLNAME  tag-release" -ForegroundColor White
+Write-Host "delphi-codesign-azure  tag-release" -ForegroundColor White
 Write-Host "===========================" -ForegroundColor White
 Write-Host "  Version : $Version"
 Write-Host "  Tag     : $tag"
@@ -90,12 +90,12 @@ if (-not (Test-Path -LiteralPath $scriptFile)) {
 
 $scriptContent = Get-Content -LiteralPath $scriptFile -Raw
 if ($scriptContent -notmatch '\$script:ToolVersion\s*=\s*''([^'']+)''') {
-  Fail "Could not find '`$script:ToolVersion = ''...''' in delphi-TOOLNAME.ps1."
+  Fail "Could not find '`$script:ToolVersion = ''...''' in delphi-codesign-azure.ps1."
 }
 
 $scriptVersion = $Matches[1]
 if ($scriptVersion -ne $Version) {
-  Fail "`$script:ToolVersion in delphi-TOOLNAME.ps1 is '$scriptVersion' but -Version arg is '$Version'.`n       Update `$script:ToolVersion in the script and commit before tagging."
+  Fail "`$script:ToolVersion in delphi-codesign-azure.ps1 is '$scriptVersion' but -Version arg is '$Version'.`n       Update `$script:ToolVersion in the script and commit before tagging."
 }
 
 Write-Ok "script version matches ($scriptVersion)"

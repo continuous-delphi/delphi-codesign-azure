@@ -1,4 +1,4 @@
-# Ticket list for delphi-TOOLNAME
+# Ticket list for delphi-codesign-azure  (https://github.com/continuous-delphi/delphi-codesign-azure)
 # See C:\code\dev-automation-tooling\create-ticket-formatinfo.md for format.
 #
 # To create issues on GitHub:

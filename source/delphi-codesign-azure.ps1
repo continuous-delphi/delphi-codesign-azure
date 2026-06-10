@@ -1,6 +1,6 @@
 #requires -Version 5.1
 # -----------------------------------------------------------------------------
-# delphi-TOOLNAME
+# delphi-codesign-azure
 #
 # (One-line description of what this tool does.)
 #
@@ -8,7 +8,7 @@
 # https://github.com/continuous-delphi
 #
 # Project repository:
-# https://github.com/continuous-delphi/delphi-TOOLNAME
+# https://github.com/continuous-delphi/delphi-codesign-azure
 #
 # Also included in the Continuous-Delphi PowerShell CI module:
 # https://github.com/continuous-delphi/delphi-powershell-ci
@@ -33,10 +33,10 @@ Exit codes:
   3  fatal error
 
 .EXAMPLE
-pwsh -File source/delphi-TOOLNAME.ps1
+pwsh -File source/delphi-codesign-azure.ps1
 
 .EXAMPLE
-pwsh -File source/delphi-TOOLNAME.ps1 -Version -Format json
+pwsh -File source/delphi-codesign-azure.ps1 -Version -Format json
 #>
 
 [CmdletBinding(SupportsShouldProcess, DefaultParameterSetName = 'Main')]
@@ -126,7 +126,7 @@ if ($Version) {
         ok      = $true
         command = 'version'
         tool    = @{
-            name    = 'delphi-TOOLNAME'
+            name    = 'delphi-codesign-azure'
             version = $script:ToolVersion
         }
     }
@@ -134,7 +134,7 @@ if ($Version) {
         Write-Output ($info | ConvertTo-Json -Depth 5 -Compress)
     }
     else {
-        Write-Output "delphi-TOOLNAME $($script:ToolVersion)"
+        Write-Output "delphi-codesign-azure $($script:ToolVersion)"
     }
     exit $ExitSuccess
 }
@@ -285,20 +285,20 @@ function Resolve-EffectiveConfig([string]$Root, [string]$ExplicitConfigFile) {
     # Start with empty config
     $config = [PSCustomObject]@{}
 
-    # Layer 1: $HOME/delphi-TOOLNAME.json
-    $homeDir = if ($env:DELPHI_TOOLNAME_HOME_OVERRIDE) {
-        $env:DELPHI_TOOLNAME_HOME_OVERRIDE
+    # Layer 1: $HOME/delphi-codesign-azure.json
+    $homeDir = if ($env:DELPHI_CODESIGN_AZURE_HOME_OVERRIDE) {
+        $env:DELPHI_CODESIGN_AZURE_HOME_OVERRIDE
     } else {
         $HOME
     }
-    $homeConfig = Read-ConfigFile (Join-Path $homeDir 'delphi-TOOLNAME.json')
+    $homeConfig = Read-ConfigFile (Join-Path $homeDir 'delphi-codesign-azure.json')
     $config = Merge-ToolConfig $config $homeConfig
 
     # Layer 2: upward traversal (if searchParentFolders enabled)
     $searchParents = Get-ConfigValue $config 'searchParentFolders'
     # Check project-level config first to see if traversal is enabled
-    $projectConfig = Read-ConfigFile (Join-Path $Root 'delphi-TOOLNAME.json')
-    $localConfig   = Read-ConfigFile (Join-Path $Root 'delphi-TOOLNAME.local.json')
+    $projectConfig = Read-ConfigFile (Join-Path $Root 'delphi-codesign-azure.json')
+    $localConfig   = Read-ConfigFile (Join-Path $Root 'delphi-codesign-azure.local.json')
     if ($null -eq $searchParents) {
         $searchParents = Get-ConfigValue $projectConfig 'searchParentFolders'
     }
@@ -310,7 +310,7 @@ function Resolve-EffectiveConfig([string]$Root, [string]$ExplicitConfigFile) {
         $parentConfigs = [System.Collections.Generic.List[object]]::new()
         $current = [System.IO.Directory]::GetParent($Root)
         while ($null -ne $current) {
-            $parentFile = Join-Path $current.FullName 'delphi-TOOLNAME.json'
+            $parentFile = Join-Path $current.FullName 'delphi-codesign-azure.json'
             $parentCfg  = Read-ConfigFile $parentFile
             if ($null -ne $parentCfg) {
                 $parentConfigs.Add($parentCfg)

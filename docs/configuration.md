@@ -1,15 +1,15 @@
 # Configuration
 
-`delphi-TOOLNAME` loads configuration from multiple sources with
+`delphi-codesign-azure` loads configuration from multiple sources with
 increasing priority. Higher-priority sources override lower ones.
 
 ## Configuration File Hierarchy
 
 ```
-$HOME/delphi-TOOLNAME.json              lowest priority (user-level defaults)
-<ancestors>/delphi-TOOLNAME.json        traversed parents (if searchParentFolders)
-<RootPath>/delphi-TOOLNAME.json         project-level (committed to repo)
-<RootPath>/delphi-TOOLNAME.local.json   local overrides (gitignored)
+$HOME/delphi-codesign-azure.json              lowest priority (user-level defaults)
+<ancestors>/delphi-codesign-azure.json        traversed parents (if searchParentFolders)
+<RootPath>/delphi-codesign-azure.json         project-level (committed to repo)
+<RootPath>/delphi-codesign-azure.local.json   local overrides (gitignored)
 -ConfigFile <path>                       explicit CI override
 CLI parameters                           highest priority
 ```
@@ -37,7 +37,7 @@ All keys are optional. Unrecognized keys are ignored.
 ## Upward Traversal (Monorepo Support)
 
 When `searchParentFolders` is `true` in a project-level or local config,
-the tool walks parent directories collecting `delphi-TOOLNAME.json` files.
+the tool walks parent directories collecting `delphi-codesign-azure.json` files.
 Traversal stops when:
 
 1. The filesystem root is reached, or
@@ -50,8 +50,8 @@ The file nearest to `-RootPath` has highest priority among traversed files.
 Use `-ShowConfig` to inspect the effective merged configuration:
 
 ```powershell
-pwsh -File source/delphi-TOOLNAME.ps1 -ShowConfig
-pwsh -File source/delphi-TOOLNAME.ps1 -ShowConfig -Json
+pwsh -File source/delphi-codesign-azure.ps1 -ShowConfig
+pwsh -File source/delphi-codesign-azure.ps1 -ShowConfig -Json
 ```
 
 ## `-ConfigFile`
@@ -59,7 +59,7 @@ pwsh -File source/delphi-TOOLNAME.ps1 -ShowConfig -Json
 Inject an explicit config file (useful in CI pipelines):
 
 ```powershell
-pwsh -File source/delphi-TOOLNAME.ps1 -ConfigFile ci/delphi-TOOLNAME-ci.json
+pwsh -File source/delphi-codesign-azure.ps1 -ConfigFile ci/delphi-codesign-azure-ci.json
 ```
 
 This file is loaded at the highest priority below CLI parameters.

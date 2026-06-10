@@ -1,9 +1,9 @@
-# tests/pwsh/delphi-TOOLNAME.Version.Tests.ps1
+# tests/pwsh/delphi-codesign-azure.Version.Tests.ps1
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-Describe 'delphi-TOOLNAME.ps1 -Version' {
+Describe 'delphi-codesign-azure.ps1 -Version' {
 
     BeforeAll {
         . "$PSScriptRoot/TestHelpers.ps1"
@@ -29,7 +29,7 @@ Describe 'delphi-TOOLNAME.ps1 -Version' {
         }
 
         It 'output contains the tool name' {
-            $script:result.StdOut[0] | Should -BeLike '*delphi-TOOLNAME*'
+            $script:result.StdOut[0] | Should -BeLike '*delphi-codesign-azure*'
         }
 
         It 'output contains the version number' {
@@ -66,8 +66,8 @@ Describe 'delphi-TOOLNAME.ps1 -Version' {
             $script:json.command | Should -Be 'version'
         }
 
-        It 'tool.name is delphi-TOOLNAME' {
-            $script:json.tool.name | Should -Be 'delphi-TOOLNAME'
+        It 'tool.name is delphi-codesign-azure' {
+            $script:json.tool.name | Should -Be 'delphi-codesign-azure'
         }
 
         It 'tool.version matches a semver pattern' {

@@ -1,7 +1,7 @@
 #Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.7.0' }
 <#
 .SYNOPSIS
-  Smoke test -- quick green-flag check that delphi-TOOLNAME.ps1 is present
+  Smoke test -- quick green-flag check that delphi-codesign-azure.ps1 is present
   and executes without error.
 
 .DESCRIPTION
@@ -10,7 +10,7 @@
   It is not a substitute for the feature-area unit tests.
 #>
 
-Describe 'delphi-TOOLNAME.ps1 smoke test' {
+Describe 'delphi-codesign-azure.ps1 smoke test' {
 
   BeforeAll {
     . "$PSScriptRoot/TestHelpers.ps1"

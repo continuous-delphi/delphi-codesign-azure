@@ -1,2 +1,2 @@
 @echo off
-start "" "https://github.com/continuous-delphi/delphi-TOOLNAME"
+start "" "https://github.com/continuous-delphi/delphi-codesign-azure"

@@ -1,5 +1,5 @@
 # TestHelpers.ps1
-# Shared setup for delphi-TOOLNAME Pester tests.
+# Shared setup for delphi-codesign-azure Pester tests.
 #
 # Dot-source this file inside each Describe-level BeforeAll:
 #   BeforeAll {
@@ -7,14 +7,14 @@
 #   }
 #
 # Provides:
-#   Get-ScriptUnderTestPath  - absolute path to delphi-TOOLNAME.ps1
+#   Get-ScriptUnderTestPath  - absolute path to delphi-codesign-azure.ps1
 #   Invoke-ToolProcess       - runs a .ps1 as a child process and returns
 #                              [pscustomobject]@{ ExitCode; StdOut; StdErr }
 #                              Optional -Shell parameter selects the host
 #                              executable (default: 'pwsh').
 
 function Get-ScriptUnderTestPath {
-  $path = Join-Path $PSScriptRoot '..\..\source\delphi-TOOLNAME.ps1'
+  $path = Join-Path $PSScriptRoot '..\..\source\delphi-codesign-azure.ps1'
   return [System.IO.Path]::GetFullPath($path)
 }
 

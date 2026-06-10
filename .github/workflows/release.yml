@@ -79,4 +79,4 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" \
             --title "${REPO_NAME} v${VERSION}" \
             --notes-file release-notes.md \
-            source/delphi-TOOLNAME.ps1
+            source/delphi-codesign-azure.ps1

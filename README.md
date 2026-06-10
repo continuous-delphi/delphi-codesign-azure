@@ -1,7 +1,7 @@
-# delphi-TOOLNAME
+# delphi-codesign-azure
 
 <!-- Badges -->
-[![CI](https://github.com/continuous-delphi/delphi-TOOLNAME/actions/workflows/ci.yml/badge.svg)](https://github.com/continuous-delphi/delphi-TOOLNAME/actions/workflows/ci.yml)
+[![CI](https://github.com/continuous-delphi/delphi-codesign-azure/actions/workflows/ci.yml/badge.svg)](https://github.com/continuous-delphi/delphi-codesign-azure/actions/workflows/ci.yml)
 
 A PowerShell utility for ... (one-line description).
 
@@ -14,10 +14,10 @@ Focused on strengthening Delphi's continued success.
 
 ```powershell
 # PowerShell 7+
-pwsh -File source/delphi-TOOLNAME.ps1
+pwsh -File source/delphi-codesign-azure.ps1
 
 # Windows PowerShell 5.1
-powershell.exe -File source\delphi-TOOLNAME.ps1
+powershell.exe -File source\delphi-codesign-azure.ps1
 ```
 
 ---
@@ -58,9 +58,9 @@ Configuration files are loaded from multiple locations with increasing
 priority. See [docs/configuration.md](docs/configuration.md) for details.
 
 ```
-$HOME/delphi-TOOLNAME.json              (user-level defaults)
-<RootPath>/delphi-TOOLNAME.json         (project-level, committed)
-<RootPath>/delphi-TOOLNAME.local.json   (local overrides, gitignored)
+$HOME/delphi-codesign-azure.json              (user-level defaults)
+<RootPath>/delphi-codesign-azure.json         (project-level, committed)
+<RootPath>/delphi-codesign-azure.local.json   (local overrides, gitignored)
 -ConfigFile <path>                       (explicit CI override)
 CLI parameters                           (highest priority)
 ```
@@ -71,22 +71,22 @@ CLI parameters                           (highest priority)
 
 ```powershell
 # Basic usage
-pwsh -File source/delphi-TOOLNAME.ps1
+pwsh -File source/delphi-codesign-azure.ps1
 
 # Check mode (CI validation)
-pwsh -File source/delphi-TOOLNAME.ps1 -Check -OutputLevel quiet
+pwsh -File source/delphi-codesign-azure.ps1 -Check -OutputLevel quiet
 
 # JSON output
-pwsh -File source/delphi-TOOLNAME.ps1 -Json
+pwsh -File source/delphi-codesign-azure.ps1 -Json
 
 # Preview without changes
-pwsh -File source/delphi-TOOLNAME.ps1 -WhatIf
+pwsh -File source/delphi-codesign-azure.ps1 -WhatIf
 
 # Show merged configuration
-pwsh -File source/delphi-TOOLNAME.ps1 -ShowConfig -Json
+pwsh -File source/delphi-codesign-azure.ps1 -ShowConfig -Json
 
 # Version info
-pwsh -File source/delphi-TOOLNAME.ps1 -Version -Format json
+pwsh -File source/delphi-codesign-azure.ps1 -Version -Format json
 ```
 
 ---
@@ -106,13 +106,13 @@ pwsh tests/run-tests.ps1
 ## Also Included In
 
 The [Continuous-Delphi PowerShell CI module](https://github.com/continuous-delphi/delphi-powershell-ci)
-bundles `delphi-TOOLNAME` as a pipeline action.
+bundles `delphi-codesign-azure` as a pipeline action.
 
 ---
 
 <br />
 
-### `delphi-TOOLNAME` - a developer tool from Continuous Delphi
+### `delphi-codesign-azure` - a developer tool from Continuous Delphi
 
 ![continuous-delphi logo](https://continuous-delphi.github.io/assets/logos/continuous-delphi-480x270.png)
 
