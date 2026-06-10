@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [0.5.12] - 2026-06-09
+## [0.5.14] - 2026-06-09
 
 - Readme cleanup, ready for testing
 

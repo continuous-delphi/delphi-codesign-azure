@@ -94,7 +94,7 @@ $ExitDirty          = 1   # signature invalid or file not signed
 $ExitPartialFailure = 2   # some files failed to sign
 $ExitFatal          = 3   # prerequisites missing, file not found, etc.
 
-$script:ToolVersion = '0.5.13'
+$script:ToolVersion = '0.5.14'
 
 # =============================================================================
 # Version info
