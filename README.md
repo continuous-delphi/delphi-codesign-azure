@@ -53,6 +53,8 @@ Signs one or more files using Azure Trusted Signing via
 - `metadata.json` with Azure Trusted Signing endpoint, account name, and certificate profile
 - Azure credentials: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` (via environment or `-EnvFile`)
 
+See [docs/machine_setup.md](docs/machine_setup.md) for first-time setup instructions.
+
 **Exit codes:**
 
 | Code | Meaning |
