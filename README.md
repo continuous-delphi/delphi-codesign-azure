@@ -14,11 +14,14 @@ Focused on strengthening Delphi's continued success.
 ## Quick Start
 
 ```powershell
-# Verify a signed executable
-pwsh -File source/delphi-codesign-azure.ps1 -Verify -FilePath app.exe
+# Sign an executable
+pwsh -File source/delphi-codesign-azure.ps1 -Sign -Files app.exe -EnvFile .env -Format text
 
-# JSON output
-pwsh -File source/delphi-codesign-azure.ps1 -Verify -FilePath app.exe -Format json
+# Sign multiple files
+pwsh -File source/delphi-codesign-azure.ps1 -Sign -Files app.exe,lib.bpl -EnvFile .env -Format text
+
+# Verify a signed executable
+pwsh -File source/delphi-codesign-azure.ps1 -Verify -FilePath app.exe -Format text
 
 # Version info
 pwsh -File source/delphi-codesign-azure.ps1 -Version -Format text
@@ -27,6 +30,55 @@ pwsh -File source/delphi-codesign-azure.ps1 -Version -Format text
 ---
 
 ## Commands
+
+### `-Sign`
+
+Signs one or more files using Azure Trusted Signing via
+`signtool.exe sign` with SHA256 digest and RFC 3161 timestamping.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `-Sign` | switch | yes | Select the sign command |
+| `-Files` | string[] | yes | One or more file paths to sign |
+| `-SignToolPath` | string | no | Explicit path to `signtool.exe`. Auto-discovered from the Windows SDK if omitted |
+| `-DlibPath` | string | no | Path to `Azure.CodeSigning.Dlib.dll`. Defaults to `%LOCALAPPDATA%\Microsoft\MicrosoftTrustedSigningClientTools\` |
+| `-MetadataPath` | string | no | Path to `metadata.json`. Defaults to the `source/` directory |
+| `-EnvFile` | string | no | `.env` file with Azure credentials (see Prerequisites) |
+| `-Format` | string | no | Output format: `object` (default), `text`, `json` |
+
+**Prerequisites:**
+
+- `signtool.exe` from the Windows SDK
+- `Azure.CodeSigning.Dlib.dll` -- install via `winget install -e --id Microsoft.Azure.TrustedSigningClientTools`
+- `metadata.json` with Azure Trusted Signing endpoint, account name, and certificate profile
+- Azure credentials: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` (via environment or `-EnvFile`)
+
+**Exit codes:**
+
+| Code | Meaning |
+|------|---------|
+| 0 | All files signed successfully |
+| 2 | Partial failure (some files failed) |
+| 3 | Fatal error (prerequisites missing, no files signed) |
+
+**Examples:**
+
+```powershell
+# Sign a single file
+pwsh -File source/delphi-codesign-azure.ps1 -Sign -Files app.exe -EnvFile .env -Format text
+
+# Sign multiple files
+pwsh -File source/delphi-codesign-azure.ps1 -Sign -Files app.exe,lib.bpl -EnvFile .env -Format text
+
+# JSON output for CI
+pwsh -File source/delphi-codesign-azure.ps1 -Sign -Files app.exe -EnvFile .env -Format json
+
+# Pipeline use
+$result = & source/delphi-codesign-azure.ps1 -Sign -Files app.exe -EnvFile .env
+$result.ok              # $true if all signed
+$result.result.signed   # count of signed files
+$result.result.failed   # count of failed files
+```
 
 ### `-Verify`
 

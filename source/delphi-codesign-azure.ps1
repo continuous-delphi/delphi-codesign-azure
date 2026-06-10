@@ -24,20 +24,23 @@
 Authenticode code signing and verification using Azure Trusted Signing.
 
 .DESCRIPTION
-Verifies Authenticode signatures on executables and libraries using
-signtool.exe from the Windows SDK.
+Signs and verifies Authenticode signatures on executables and libraries
+using signtool.exe and Azure Trusted Signing.
 
 Exit codes:
-  0  success (signature valid)
-  1  signature invalid or file not signed
-  2  partial failure
-  3  fatal error (signtool not found, file not found, etc.)
+  0  success
+  1  signature invalid or file not signed (verify)
+  2  partial failure (some files failed to sign)
+  3  fatal error (prerequisites missing, file not found, etc.)
 
 .EXAMPLE
-pwsh -File source/delphi-codesign-azure.ps1 -Verify -FilePath app.exe
+pwsh -File source/delphi-codesign-azure.ps1 -Sign -Files app.exe
 
 .EXAMPLE
-pwsh -File source/delphi-codesign-azure.ps1 -Verify -FilePath app.exe -Format json
+pwsh -File source/delphi-codesign-azure.ps1 -Sign -Files app.exe,lib.bpl -Format text
+
+.EXAMPLE
+pwsh -File source/delphi-codesign-azure.ps1 -Verify -FilePath app.exe -Format text
 
 .EXAMPLE
 pwsh -File source/delphi-codesign-azure.ps1 -Version -Format json
@@ -52,14 +55,13 @@ pwsh -File source/delphi-codesign-azure.ps1 -Version -Format json
   Justification='Template placeholder: consumed by tool-specific logic added during customization.')]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'OutputFile',
   Justification='Template placeholder: consumed by tool-specific logic added during customization.')]
-[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', 'ExitPartialFailure',
-  Justification='Exit code constant available for tool-specific logic.')]
 param(
     [Parameter(ParameterSetName = 'Version', Mandatory)]
     [switch]$Version,
 
     [Parameter(ParameterSetName = 'Version')]
     [Parameter(ParameterSetName = 'Verify')]
+    [Parameter(ParameterSetName = 'Sign')]
     [ValidateSet('object', 'text', 'json')]
     [string]$Format = 'object',
 
@@ -70,7 +72,23 @@ param(
     [string]$FilePath,
 
     [Parameter(ParameterSetName = 'Verify')]
+    [Parameter(ParameterSetName = 'Sign')]
     [string]$SignToolPath,
+
+    [Parameter(ParameterSetName = 'Sign', Mandatory)]
+    [switch]$Sign,
+
+    [Parameter(ParameterSetName = 'Sign', Mandatory)]
+    [string[]]$Files,
+
+    [Parameter(ParameterSetName = 'Sign')]
+    [string]$DlibPath,
+
+    [Parameter(ParameterSetName = 'Sign')]
+    [string]$MetadataPath,
+
+    [Parameter(ParameterSetName = 'Sign')]
+    [string]$EnvFile,
 
     [Parameter(ParameterSetName = 'Main')]
     [string]$RootPath,
@@ -111,7 +129,7 @@ $ExitDirty          = 1   # -Check found items needing attention / signature inv
 $ExitPartialFailure = 2   # some items failed
 $ExitFatal          = 3   # engine not found, bad root, unhandled error
 
-$script:ToolVersion = '0.1.1'
+$script:ToolVersion = '0.1.2'
 
 # =============================================================================
 # Version info
@@ -371,6 +389,44 @@ function Invoke-SignToolVerify([string]$SignToolExe, [string]$TargetFile) {
 }
 
 # =============================================================================
+# Sign command -- Azure Trusted Signing
+# =============================================================================
+
+function Import-EnvFile([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return }
+    foreach ($line in Get-Content -LiteralPath $Path -Encoding UTF8) {
+        $line = $line.Trim()
+        if ($line -eq '' -or $line.StartsWith('#')) { continue }
+        $eq = $line.IndexOf('=')
+        if ($eq -gt 0) {
+            $key = $line.Substring(0, $eq)
+            $val = $line.Substring($eq + 1)
+            if (-not [Environment]::GetEnvironmentVariable($key)) {
+                [Environment]::SetEnvironmentVariable($key, $val, 'Process')
+            }
+        }
+    }
+}
+
+function Find-Dlib([string]$ExplicitPath) {
+    if (-not [string]::IsNullOrEmpty($ExplicitPath)) {
+        if (Test-Path -LiteralPath $ExplicitPath -PathType Leaf) { return $ExplicitPath }
+        return $null
+    }
+    $default = Join-Path $env:LOCALAPPDATA 'Microsoft\MicrosoftTrustedSigningClientTools\Azure.CodeSigning.Dlib.dll'
+    if (Test-Path -LiteralPath $default -PathType Leaf) { return $default }
+    return $null
+}
+
+function Invoke-SignToolSign([string]$SignToolExe, [string]$DlibDll, [string]$MetadataJson, [string]$TargetFile) {
+    $output = cmd.exe /c "`"$SignToolExe`" sign /v /fd SHA256 /tr `"http://timestamp.acs.microsoft.com`" /td SHA256 /dlib `"$DlibDll`" /dmdf `"$MetadataJson`" `"$TargetFile`"" 2>&1
+    return @{
+        ExitCode = $LASTEXITCODE
+        Output   = ($output | Out-String).TrimEnd()
+    }
+}
+
+# =============================================================================
 # Main execution
 # =============================================================================
 
@@ -495,6 +551,154 @@ if ($Verify) {
                 })
             }
             default { Write-Error "Fatal error: $_" -ErrorAction Continue }
+        }
+        exit $ExitFatal
+    }
+}
+
+# --- Sign command ---
+
+if ($Sign) {
+    try {
+        # Load .env file for Azure credentials
+        if (-not [string]::IsNullOrEmpty($EnvFile)) {
+            Import-EnvFile $EnvFile
+        }
+
+        # Find signtool.exe
+        $signtool = Find-SignTool $SignToolPath
+        if ($null -eq $signtool) {
+            $msg = 'signtool.exe not found. Install the Windows SDK or pass -SignToolPath.'
+            switch ($Format) {
+                'json'   { Write-Output (@{ ok = $false; command = 'sign'; tool = @{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }; error = @{ code = $ExitFatal; message = $msg } } | ConvertTo-Json -Depth 5 -Compress) }
+                'object' { Write-Output ([PSCustomObject]@{ ok = $false; command = 'sign'; tool = [PSCustomObject]@{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }; error = [PSCustomObject]@{ code = $ExitFatal; message = $msg } }) }
+                default  { Write-Error $msg -ErrorAction Continue }
+            }
+            exit $ExitFatal
+        }
+
+        # Find Azure.CodeSigning.Dlib.dll
+        $dlib = Find-Dlib $DlibPath
+        if ($null -eq $dlib) {
+            $msg = "Azure.CodeSigning.Dlib.dll not found. Install via: winget install -e --id Microsoft.Azure.TrustedSigningClientTools"
+            if (-not [string]::IsNullOrEmpty($DlibPath)) { $msg = "Azure.CodeSigning.Dlib.dll not found at: $DlibPath" }
+            switch ($Format) {
+                'json'   { Write-Output (@{ ok = $false; command = 'sign'; tool = @{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }; error = @{ code = $ExitFatal; message = $msg } } | ConvertTo-Json -Depth 5 -Compress) }
+                'object' { Write-Output ([PSCustomObject]@{ ok = $false; command = 'sign'; tool = [PSCustomObject]@{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }; error = [PSCustomObject]@{ code = $ExitFatal; message = $msg } }) }
+                default  { Write-Error $msg -ErrorAction Continue }
+            }
+            exit $ExitFatal
+        }
+
+        # Find metadata.json
+        $metadata = $MetadataPath
+        if ([string]::IsNullOrEmpty($metadata)) {
+            $metadata = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Definition) 'metadata.json'
+        }
+        if (-not (Test-Path -LiteralPath $metadata -PathType Leaf)) {
+            $msg = "Metadata JSON not found at: $metadata"
+            switch ($Format) {
+                'json'   { Write-Output (@{ ok = $false; command = 'sign'; tool = @{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }; error = @{ code = $ExitFatal; message = $msg } } | ConvertTo-Json -Depth 5 -Compress) }
+                'object' { Write-Output ([PSCustomObject]@{ ok = $false; command = 'sign'; tool = [PSCustomObject]@{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }; error = [PSCustomObject]@{ code = $ExitFatal; message = $msg } }) }
+                default  { Write-Error $msg -ErrorAction Continue }
+            }
+            exit $ExitFatal
+        }
+
+        # Validate Azure credentials
+        foreach ($var in @('AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET')) {
+            if (-not [Environment]::GetEnvironmentVariable($var)) {
+                $msg = "Environment variable $var is not set. Pass -EnvFile or set it in the environment."
+                switch ($Format) {
+                    'json'   { Write-Output (@{ ok = $false; command = 'sign'; tool = @{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }; error = @{ code = $ExitFatal; message = $msg } } | ConvertTo-Json -Depth 5 -Compress) }
+                    'object' { Write-Output ([PSCustomObject]@{ ok = $false; command = 'sign'; tool = [PSCustomObject]@{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }; error = [PSCustomObject]@{ code = $ExitFatal; message = $msg } }) }
+                    default  { Write-Error $msg -ErrorAction Continue }
+                }
+                exit $ExitFatal
+            }
+        }
+
+        # Sign each file
+        $signed = 0
+        $failed = 0
+        $items = [System.Collections.Generic.List[object]]::new()
+
+        foreach ($file in $Files) {
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
+                if ($Format -eq 'text') { Write-Host "  SKIP  $file (not found)" -ForegroundColor Yellow }
+                $items.Add(@{ file = $file; success = $false; message = 'File not found' })
+                $failed++
+                continue
+            }
+
+            $resolvedFile = (Resolve-Path -LiteralPath $file).ProviderPath
+            if ($Format -eq 'text') { Write-Host "  SIGN  $resolvedFile" -ForegroundColor Cyan }
+
+            $result = Invoke-SignToolSign -SignToolExe $signtool -DlibDll $dlib -MetadataJson $metadata -TargetFile $resolvedFile
+
+            if ($result.ExitCode -ne 0) {
+                if ($Format -eq 'text') {
+                    Write-Host $result.Output -ForegroundColor Red
+                    Write-Host "  FAIL  $resolvedFile (exit code $($result.ExitCode))" -ForegroundColor Red
+                }
+                $items.Add(@{ file = $resolvedFile; success = $false; exitCode = $result.ExitCode; message = $result.Output })
+                $failed++
+            }
+            else {
+                if ($Format -eq 'text') { Write-Host "  OK    $resolvedFile" -ForegroundColor Green }
+                $items.Add(@{ file = $resolvedFile; success = $true; exitCode = 0 })
+                $signed++
+            }
+        }
+
+        # Output results
+        $allOk = ($failed -eq 0)
+        $total = $Files.Count
+
+        switch ($Format) {
+            'json' {
+                $envelope = @{
+                    ok      = $allOk
+                    command = 'sign'
+                    tool    = @{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }
+                    result  = @{
+                        signed = $signed
+                        failed = $failed
+                        total  = $total
+                        items  = @($items)
+                    }
+                }
+                Write-Output ($envelope | ConvertTo-Json -Depth 5 -Compress)
+            }
+            'object' {
+                Write-Output ([PSCustomObject]@{
+                    ok      = $allOk
+                    command = 'sign'
+                    tool    = [PSCustomObject]@{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }
+                    result  = [PSCustomObject]@{
+                        signed = $signed
+                        failed = $failed
+                        total  = $total
+                        items  = @($items | ForEach-Object { [PSCustomObject]$_ })
+                    }
+                })
+            }
+            default {
+                Write-Host ''
+                Write-Host "Signed: $signed  Failed: $failed  Total: $total"
+            }
+        }
+
+        if ($allOk) { exit $ExitSuccess }
+        elseif ($signed -gt 0) { exit $ExitPartialFailure }
+        else { exit $ExitFatal }
+    }
+    catch {
+        $msg = "$_"
+        switch ($Format) {
+            'json'   { Write-Output (@{ ok = $false; command = 'sign'; tool = @{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }; error = @{ code = $ExitFatal; message = $msg } } | ConvertTo-Json -Depth 5 -Compress) }
+            'object' { Write-Output ([PSCustomObject]@{ ok = $false; command = 'sign'; tool = [PSCustomObject]@{ name = 'delphi-codesign-azure'; version = $script:ToolVersion }; error = [PSCustomObject]@{ code = $ExitFatal; message = $msg } }) }
+            default  { Write-Error "Fatal error: $_" -ErrorAction Continue }
         }
         exit $ExitFatal
     }

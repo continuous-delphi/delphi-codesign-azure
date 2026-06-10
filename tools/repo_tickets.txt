@@ -27,3 +27,42 @@ Acceptance criteria:
 - [x] Missing file returns exit 3 with error envelope
 - [x] JSON output contains signed, filePath, signtoolExitCode, signtoolOutput
 - [x] All Pester tests pass
+---
+Title: Add -Sign command
+Issue: #2
+Status: closed
+Labels: enhancement
+Body:
+Add a `-Sign` command that signs executables and libraries using Azure
+Trusted Signing via `signtool.exe sign`.
+
+Reference implementation: `C:\code\radFormatter\tools\codesign\sign.ps1`
+
+The sign command should:
+- Accept one or more file paths to sign
+- Use Azure Trusted Signing with `Azure.CodeSigning.Dlib.dll`
+- Require Azure credentials (AZURE_TENANT_ID, AZURE_CLIENT_ID,
+  AZURE_CLIENT_SECRET) via environment variables or `.env` file
+- Require a `metadata.json` with endpoint, account name, and
+  certificate profile
+- Auto-discover `signtool.exe` from the Windows SDK (reuse
+  `Find-SignTool` from the `-Verify` command)
+- Support `-SignToolPath`, `-DlibPath`, `-MetadataPath` overrides
+- SHA256 file digest with RFC 3161 timestamp from
+  `http://timestamp.acs.microsoft.com`
+- Report per-file success/failure with summary counts
+- Support `object`, `text`, `json` output formats
+
+Exit codes:
+- 0: all files signed successfully
+- 2: partial failure (some files failed)
+- 3: fatal error (prerequisites missing, no files specified)
+
+Acceptance criteria:
+- [ ] Signs a single executable with valid Azure credentials
+- [ ] Signs multiple files in one invocation
+- [ ] Reports per-file success/failure
+- [ ] Exits 2 on partial failure
+- [ ] Exits 3 when signtool, dlib, metadata, or credentials missing
+- [ ] JSON output uses standard envelope
+- [ ] All Pester tests pass
