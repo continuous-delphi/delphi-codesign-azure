@@ -1,13 +1,17 @@
 # delphi-codesign-azure
 
-<!-- Badges -->
+![delphi-codesign-azure logo](https://continuous-delphi.github.io/assets/logos/delphi-codesign-azure-480x270.png)
+
+[![Delphi](https://img.shields.io/badge/delphi-red)](https://www.embarcadero.com/products/delphi)
 [![CI](https://github.com/continuous-delphi/delphi-codesign-azure/actions/workflows/ci.yml/badge.svg)](https://github.com/continuous-delphi/delphi-codesign-azure/actions/workflows/ci.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/continuous-delphi/delphi-codesign-azure?display_name=release)](https://github.com/continuous-delphi/delphi-codesign-azure/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/continuous-delphi/delphi-codesign-azure)
+[![Continuous Delphi](https://img.shields.io/badge/org-continuous--delphi-red)](https://github.com/continuous-delphi)
+
 
 A PowerShell utility for Authenticode code signing and verification
 using Azure Trusted Signing and `signtool.exe`.
-
-Part of [Continuous-Delphi](https://github.com/continuous-delphi):
-Focused on strengthening Delphi's continued success.
 
 ---
 
@@ -40,8 +44,10 @@ Signs one or more files using Azure Trusted Signing via
 |-----------|------|----------|-------------|
 | `-Sign` | switch | yes | Select the sign command |
 | `-Files` | string[] | yes | One or more file paths to sign |
-| `-SignToolPath` | string | no | Explicit path to `signtool.exe`. Auto-discovered from the Windows SDK if omitted |
-| `-DlibPath` | string | no | Path to `Azure.CodeSigning.Dlib.dll`. Defaults to `%LOCALAPPDATA%\Microsoft\MicrosoftTrustedSigningClientTools\` |
+| `-SignToolPath` | string | no | Explicit path to `signtool.exe`. Auto-discovered from the Windows SDK if 
+omitted |
+| `-DlibPath` | string | no | Path to `Azure.CodeSigning.Dlib.dll`. Defaults to 
+`%LOCALAPPDATA%\Microsoft\MicrosoftTrustedSigningClientTools\` |
 | `-MetadataPath` | string | no | Path to `metadata.json`. Defaults to the `source/` directory |
 | `-EnvFile` | string | no | `.env` file with Azure credentials (see Prerequisites) |
 | `-Format` | string | no | Output format: `object` (default), `text`, `json` |
@@ -49,9 +55,11 @@ Signs one or more files using Azure Trusted Signing via
 **Prerequisites:**
 
 - `signtool.exe` from the Windows SDK
-- `Azure.CodeSigning.Dlib.dll` -- install via `winget install -e --id Microsoft.Azure.TrustedSigningClientTools`
+- `Azure.CodeSigning.Dlib.dll` -- install via `winget install -e --id 
+Microsoft.Azure.TrustedSigningClientTools`
 - `metadata.json` with Azure Trusted Signing endpoint, account name, and certificate profile
-- Azure credentials: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` (via environment or `-EnvFile`)
+- Azure credentials: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` (via environment or `-
+EnvFile`)
 
 See [docs/machine_setup.md](docs/machine_setup.md) for first-time setup instructions.
 
@@ -90,7 +98,8 @@ Verifies the Authenticode signature on a file using `signtool.exe verify /pa /v`
 |-----------|------|----------|-------------|
 | `-Verify` | switch | yes | Select the verify command |
 | `-FilePath` | string | yes | Path to the file to verify |
-| `-SignToolPath` | string | no | Explicit path to `signtool.exe`. Auto-discovered from the Windows SDK if omitted |
+| `-SignToolPath` | string | no | Explicit path to `signtool.exe`. Auto-discovered from the Windows SDK if 
+omitted |
 | `-Format` | string | no | Output format: `object` (default), `text`, `json` |
 
 **Exit codes:**
@@ -168,7 +177,8 @@ See [docs/metadata.json](docs/metadata.json) for an example.
 
 | Field | Description |
 |-------|-------------|
-| `Endpoint` | Azure Trusted Signing regional endpoint URL. Use `eus` (East US), `wus` (West US), `neu` (North Europe), or `weu` (West Europe) |
+| `Endpoint` | Azure Trusted Signing regional endpoint URL. Use `eus` (East US), `wus` (West US), `neu` 
+(North Europe), or `weu` (West Europe) |
 | `CodeSigningAccountName` | Name of the Trusted Signing account in the Azure portal |
 | `CertificateProfileName` | Name of the certificate profile under the signing account |
 
@@ -244,7 +254,8 @@ committed. Add it to `.gitignore`.
 
 1. **AZURE_TENANT_ID**: Azure portal > Entra ID > Overview > Tenant ID
 2. **AZURE_CLIENT_ID**: Azure portal > Entra ID > App registrations > your app > Application (client) ID
-3. **AZURE_CLIENT_SECRET**: Azure portal > Entra ID > App registrations > your app > Certificates & secrets > New client secret > copy the **Value** (not the Secret ID)
+3. **AZURE_CLIENT_SECRET**: Azure portal > Entra ID > App registrations > your app > Certificates & secrets 
+> New client secret > copy the **Value** (not the Secret ID)
 
 If the client secret has expired, create a new one in the portal.
 
@@ -293,27 +304,17 @@ Error:
 
 ## Running Tests
 
-```powershell
-# Requires: PowerShell 7+, Pester 5.7+, PSScriptAnalyzer
-Install-Module Pester -MinimumVersion 5.7.0 -Force -Scope CurrentUser
-Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+Requires PowerShell 7+, Pester 5.7+, and PSScriptAnalyzer.
 
-pwsh tests/run-tests.ps1
+```powershell
+./tests/run-tests.ps1
 ```
 
 ---
 
-## Also Included In
+## Continuous-Delphi
 
-The [Continuous-Delphi PowerShell CI module](https://github.com/continuous-delphi/delphi-powershell-ci)
-bundles `delphi-codesign-azure` as a pipeline action.
-
----
-
-<br />
-
-### `delphi-codesign-azure` - a developer tool from Continuous Delphi
+This tool is part of the [Continuous-Delphi](https://github.com/continuous-delphi)
+ecosystem, focused on strengthening Delphi's continued success.
 
 ![continuous-delphi logo](https://continuous-delphi.github.io/assets/logos/continuous-delphi-480x270.png)
-
-https://github.com/continuous-delphi
